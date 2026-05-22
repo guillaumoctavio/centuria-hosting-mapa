@@ -4,101 +4,120 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>CENTURIA | Editor</title>
-  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@100;400;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700;800&display=swap" rel="stylesheet">
   <link href="https://unpkg.com/maplibre-gl@4/dist/maplibre-gl.css" rel="stylesheet">
   <script src="https://unpkg.com/maplibre-gl@4/dist/maplibre-gl.js"></script>
   <style>
-    :root{--bg:#000103;--cyan:#00f2ff;--dim:rgba(0,242,255,0.12);--panel:rgba(0,1,3,0.95);}
+    :root{--bg:#000103;--cyan:#00f2ff;--dim:rgba(0,242,255,0.15);--panel:rgba(0,1,3,0.97);}
     *{margin:0;padding:0;box-sizing:border-box;}
     body{background:var(--bg);color:var(--cyan);font-family:'JetBrains Mono',monospace;height:100vh;overflow:hidden;}
 
-    /* ── Connect screen ── */
+    /* ── Connect ── */
     #connect-screen{position:fixed;inset:0;z-index:500;display:flex;align-items:center;justify-content:center;background:var(--bg);}
-    .conn-box{width:380px;padding:40px;border:1px solid rgba(0,242,255,.3);background:var(--panel);backdrop-filter:blur(20px);}
-    .conn-title{font-size:1.1rem;font-weight:800;letter-spacing:6px;color:#fff;margin-bottom:4px;}
-    .conn-sub{font-size:.48rem;letter-spacing:3px;opacity:.45;margin-bottom:8px;}
-    .conn-hint{font-size:.5rem;opacity:.55;margin-bottom:24px;line-height:1.6;letter-spacing:.5px;}
+    .conn-box{width:400px;padding:44px;border:1px solid rgba(0,242,255,.35);background:var(--panel);backdrop-filter:blur(20px);}
+    .conn-title{font-size:1.3rem;font-weight:800;letter-spacing:6px;color:#fff;margin-bottom:6px;}
+    .conn-sub{font-size:11px;letter-spacing:3px;opacity:.5;margin-bottom:10px;}
+    .conn-hint{font-size:11px;opacity:.6;margin-bottom:26px;line-height:1.7;}
     .conn-hint a{color:var(--cyan);}
-    #conn-err{margin-top:10px;font-size:.48rem;color:#ff6060;letter-spacing:2px;display:none;}
+    #conn-err{margin-top:12px;font-size:11px;color:#ff6060;letter-spacing:1px;display:none;padding:8px;border:1px solid rgba(255,80,80,.3);}
+
+    /* ── Error toast ── */
+    #toast{position:fixed;bottom:20px;right:20px;z-index:999;background:rgba(180,30,30,.95);border:1px solid #ff6060;color:#fff;padding:12px 18px;font-size:11px;letter-spacing:1px;display:none;max-width:380px;line-height:1.5;}
+    #toast.ok{background:rgba(0,80,40,.95);border-color:#00f2ff;}
 
     /* ── App ── */
     #app{display:none;height:100vh;}
     .layout{display:flex;height:100vh;}
-    #sidebar{width:320px;flex-shrink:0;background:var(--panel);border-right:1px solid var(--dim);display:flex;flex-direction:column;overflow:hidden;}
+    #sidebar{width:340px;flex-shrink:0;background:var(--panel);border-right:1px solid var(--dim);display:flex;flex-direction:column;overflow:hidden;}
     #preview-map{flex:1;}
 
-    /* ── Sidebar ── */
-    .sb-head{padding:13px 18px;border-bottom:1px solid var(--dim);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
-    .sb-title{font-size:.62rem;font-weight:800;letter-spacing:4px;color:#fff;}
+    /* ── Sidebar head ── */
+    .sb-head{padding:14px 18px;border-bottom:1px solid var(--dim);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
+    .sb-title{font-size:13px;font-weight:800;letter-spacing:4px;color:#fff;}
     .tabs{display:flex;border-bottom:1px solid var(--dim);flex-shrink:0;}
-    .tab{flex:1;padding:8px 0;font-size:.46rem;letter-spacing:2px;text-align:center;cursor:pointer;background:none;border:none;color:var(--cyan);font-family:inherit;border-bottom:2px solid transparent;transition:.2s;}
-    .tab.on{color:#fff;font-weight:800;border-bottom-color:var(--cyan);background:rgba(0,242,255,.05);}
+    .tab{flex:1;padding:9px 0;font-size:11px;letter-spacing:2px;text-align:center;cursor:pointer;background:none;border:none;color:var(--cyan);font-family:inherit;border-bottom:2px solid transparent;transition:.2s;font-weight:700;}
+    .tab.on{color:#fff;border-bottom-color:var(--cyan);background:rgba(0,242,255,.06);}
     .pane{flex:1;overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--dim) transparent;}
 
     /* ── Form ── */
-    .sec{padding:12px 18px;border-bottom:1px solid var(--dim);}
-    .lbl{font-size:.42rem;letter-spacing:3px;opacity:.45;margin-bottom:7px;display:block;text-transform:uppercase;}
-    .inp{width:100%;background:rgba(0,242,255,.04);border:1px solid rgba(0,242,255,.2);color:#fff;padding:8px 10px;font-family:inherit;font-size:.62rem;letter-spacing:1px;outline:none;transition:border-color .2s;}
+    .sec{padding:13px 18px;border-bottom:1px solid var(--dim);}
+    .lbl{font-size:10px;letter-spacing:3px;color:rgba(0,242,255,.7);margin-bottom:7px;display:block;font-weight:700;}
+    .inp{width:100%;background:rgba(0,242,255,.05);border:1px solid rgba(0,242,255,.25);color:#fff;padding:9px 11px;font-family:inherit;font-size:12px;letter-spacing:.5px;outline:none;transition:border-color .2s;}
     .inp:focus{border-color:var(--cyan);}
-    .sel{width:100%;background:#000103;border:1px solid rgba(0,242,255,.2);color:#fff;padding:8px 10px;font-family:inherit;font-size:.6rem;outline:none;cursor:pointer;}
-    .sel option{background:#000103;}
+    .sel{width:100%;background:#000508;border:1px solid rgba(0,242,255,.25);color:#fff;padding:9px 11px;font-family:inherit;font-size:12px;outline:none;cursor:pointer;}
+    .sel option{background:#000508;}
 
     /* ── Data source tabs ── */
-    .src-tabs{display:flex;gap:0;margin-bottom:10px;}
-    .src-tab{flex:1;padding:6px;font-size:.44rem;letter-spacing:2px;text-align:center;cursor:pointer;background:none;border:1px solid rgba(0,242,255,.2);color:var(--cyan);font-family:inherit;transition:.2s;}
-    .src-tab.on{background:rgba(0,242,255,.1);color:#fff;border-color:var(--cyan);}
+    .src-tabs{display:flex;margin-bottom:10px;}
+    .src-tab{flex:1;padding:7px;font-size:10px;letter-spacing:1px;text-align:center;cursor:pointer;background:none;border:1px solid rgba(0,242,255,.2);color:rgba(0,242,255,.7);font-family:inherit;transition:.2s;font-weight:700;}
+    .src-tab.on{background:rgba(0,242,255,.12);color:#fff;border-color:var(--cyan);}
 
     /* ── Drop zone ── */
-    .drop{border:1px dashed rgba(0,242,255,.3);padding:18px;text-align:center;cursor:pointer;transition:.2s;position:relative;}
-    .drop:hover,.drop.over{border-color:var(--cyan);background:rgba(0,242,255,.04);}
+    .drop{border:1px dashed rgba(0,242,255,.3);padding:20px;text-align:center;cursor:pointer;transition:.2s;position:relative;}
+    .drop:hover,.drop.over{border-color:var(--cyan);background:rgba(0,242,255,.05);}
     .drop input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;}
-    .drop-icon{font-size:1.3rem;margin-bottom:5px;}
-    .drop-text{font-size:.48rem;letter-spacing:2px;opacity:.6;}
-    .drop-name{font-size:.56rem;color:var(--cyan);font-weight:800;margin-top:4px;}
+    .drop-icon{font-size:1.5rem;margin-bottom:6px;}
+    .drop-text{font-size:11px;letter-spacing:2px;opacity:.65;}
+    .drop-name{font-size:12px;color:var(--cyan);font-weight:700;margin-top:5px;}
 
     /* ── Buttons ── */
-    .btn{padding:9px 14px;font-size:.48rem;letter-spacing:3px;background:none;border:1px solid var(--cyan);color:var(--cyan);cursor:pointer;font-family:inherit;transition:.2s;text-transform:uppercase;}
+    .btn{padding:10px 16px;font-size:11px;letter-spacing:2px;background:none;border:1px solid var(--cyan);color:var(--cyan);cursor:pointer;font-family:inherit;transition:.2s;font-weight:700;}
     .btn:hover{background:var(--cyan);color:#000;}
     .btn.full{width:100%;}
-    .btn.sm{padding:5px 9px;font-size:.42rem;}
-    .btn.danger{border-color:rgba(255,80,80,.4);color:rgba(255,100,100,.8);}
-    .btn.danger:hover{background:rgba(255,60,60,.15);color:#ff7070;border-color:#ff7070;}
-    .row{display:flex;gap:6px;}
+    .btn.sm{padding:6px 10px;font-size:10px;}
+    .btn.danger{border-color:rgba(255,80,80,.45);color:rgba(255,110,110,.9);}
+    .btn.danger:hover{background:rgba(255,60,60,.18);color:#ff7070;border-color:#ff7070;}
+    .row{display:flex;gap:7px;}
 
     /* ── Layer cards ── */
-    .lcard{border:1px solid var(--dim);margin-bottom:7px;background:rgba(0,242,255,.02);}
-    .lcard-hd{display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid var(--dim);cursor:pointer;}
-    .lcard-bd{padding:10px;display:none;}
+    .lcard{border:1px solid var(--dim);margin-bottom:8px;background:rgba(0,242,255,.02);}
+    .lcard-hd{display:flex;align-items:center;gap:9px;padding:9px 11px;cursor:pointer;user-select:none;}
+    .lcard-bd{padding:12px;display:none;border-top:1px solid var(--dim);}
     .lcard-bd.open{display:block;}
-    .lnum{font-size:.44rem;opacity:.35;}
-    .lname-el{font-size:.56rem;color:#fff;flex:1;}
+    .lnum{font-size:10px;opacity:.4;font-weight:700;}
+    .lname-el{font-size:12px;color:#fff;flex:1;font-weight:700;}
+    .lcard-arrow{font-size:10px;opacity:.35;}
 
     /* ── Palette ── */
-    .pal-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;}
-    .pal-sw{height:24px;border-radius:3px;cursor:pointer;border:2px solid transparent;transition:.15s;}
+    .pal-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;}
+    .pal-sw{height:26px;border-radius:3px;cursor:pointer;border:2px solid transparent;transition:.15s;}
     .pal-sw.on{border-color:#fff;}
+
+    /* ── Stops editor ── */
+    .stops-wrap{display:flex;gap:4px;margin-bottom:6px;}
+    .stop-inp{flex:1;min-width:0;background:rgba(0,242,255,.06);border:1px solid rgba(0,242,255,.2);color:#fff;padding:5px 4px;font-family:inherit;font-size:10px;text-align:center;outline:none;-moz-appearance:textfield;}
+    .stop-inp::-webkit-outer-spin-button,.stop-inp::-webkit-inner-spin-button{-webkit-appearance:none;}
+    .stop-inp:focus{border-color:var(--cyan);}
+    .stops-preview{height:6px;border-radius:3px;margin-bottom:4px;}
 
     /* ── Opacity slider ── */
     .op-sl{width:100%;-webkit-appearance:none;height:2px;outline:none;cursor:pointer;background:linear-gradient(to right,var(--cyan) 0%,var(--cyan) var(--p,60%),rgba(0,242,255,.2) var(--p,60%));}
-    .op-sl::-webkit-slider-thumb{-webkit-appearance:none;width:10px;height:10px;border-radius:50%;background:var(--cyan);}
+    .op-sl::-webkit-slider-thumb{-webkit-appearance:none;width:12px;height:12px;border-radius:50%;background:var(--cyan);}
     .op-row{display:flex;align-items:center;gap:8px;}
-    .op-val{font-size:.5rem;color:#fff;min-width:28px;text-align:right;}
+    .op-val{font-size:11px;color:#fff;min-width:32px;text-align:right;font-weight:700;}
 
     /* ── Map list ── */
-    .mitem{display:flex;align-items:center;padding:10px 18px;border-bottom:1px solid var(--dim);cursor:pointer;transition:.15s;gap:10px;}
-    .mitem:hover{background:rgba(0,242,255,.04);}
-    .mitem.cur{background:rgba(0,242,255,.08);}
+    .mitem{display:flex;align-items:center;padding:11px 18px;border-bottom:1px solid var(--dim);cursor:pointer;transition:.15s;gap:10px;}
+    .mitem:hover{background:rgba(0,242,255,.05);}
+    .mitem.cur{background:rgba(0,242,255,.09);}
     .mitem-dot{width:6px;height:6px;border-radius:50%;background:var(--cyan);flex-shrink:0;}
-    .mitem-title{font-size:.58rem;color:#fff;flex:1;}
-    .mitem-slug{font-size:.44rem;opacity:.4;}
-    .empty{padding:28px 18px;text-align:center;font-size:.5rem;opacity:.4;letter-spacing:2px;}
+    .mitem-title{font-size:12px;color:#fff;flex:1;font-weight:700;}
+    .mitem-slug{font-size:10px;opacity:.45;}
+    .empty{padding:30px 18px;text-align:center;font-size:11px;opacity:.4;letter-spacing:2px;}
 
-    /* ── URL / Status ── */
-    .url-box{background:rgba(0,242,255,.05);border:1px solid var(--dim);padding:8px;font-size:.5rem;color:var(--cyan);word-break:break-all;cursor:pointer;transition:.2s;margin-top:7px;display:none;}
+    /* ── URL box ── */
+    .url-box{background:rgba(0,242,255,.06);border:1px solid var(--dim);padding:9px;font-size:10px;color:var(--cyan);word-break:break-all;cursor:pointer;transition:.2s;margin-top:8px;display:none;}
     .url-box:hover{border-color:var(--cyan);}
-    #statusbar{padding:7px 18px;border-top:1px solid var(--dim);font-size:.44rem;letter-spacing:2px;opacity:.6;display:flex;align-items:center;gap:7px;flex-shrink:0;}
-    .sdot{width:5px;height:5px;border-radius:50%;background:var(--cyan);}
-    #vp-info{font-size:.42rem;opacity:.4;letter-spacing:1px;margin-top:4px;}
+
+    /* ── Status bar ── */
+    #statusbar{padding:8px 18px;border-top:1px solid var(--dim);font-size:10px;letter-spacing:1px;opacity:.7;display:flex;align-items:center;gap:8px;flex-shrink:0;}
+    .sdot{width:6px;height:6px;border-radius:50%;background:var(--cyan);}
+    #vp-info{font-size:10px;opacity:.5;letter-spacing:.5px;margin-top:4px;}
+
+    /* ── Checkbox row ── */
+    .ck-row{display:flex;align-items:center;gap:8px;cursor:pointer;font-size:11px;color:rgba(255,255,255,.8);font-weight:700;}
+    .ck-row input{accent-color:var(--cyan);width:14px;height:14px;cursor:pointer;}
+    .field-spacer{height:10px;}
   </style>
 </head>
 <body>
@@ -109,17 +128,20 @@
     <div class="conn-title">CENTURIA</div>
     <div class="conn-sub">EDITOR — ACCESO INTERNO</div>
     <div class="conn-hint">
-      Necesitás un GitHub Personal Access Token con permisos de escritura en el repositorio.<br>
+      Necesitás un GitHub Personal Access Token con permiso de escritura en el repositorio.<br>
       <a href="https://github.com/settings/tokens?type=beta" target="_blank">→ Crear token (Fine-grained → Contents: Read &amp; Write)</a>
     </div>
     <label class="lbl">GITHUB TOKEN</label>
-    <input class="inp" id="pat-input" type="password" placeholder="github_pat_..." style="margin-bottom:16px"
+    <input class="inp" id="pat-input" type="password" placeholder="github_pat_..." style="margin-bottom:18px"
       onkeydown="if(event.key==='Enter')connect()">
     <button class="btn full" onclick="connect()">CONECTAR</button>
     <div id="conn-err"></div>
-    <div style="margin-top:12px;font-size:.44rem;opacity:.35;letter-spacing:1px">Se guarda solo en tu navegador, nunca sale de acá.</div>
+    <div style="margin-top:14px;font-size:10px;opacity:.35;letter-spacing:.5px">Se guarda solo en tu navegador, nunca sale de acá.</div>
   </div>
 </div>
+
+<!-- ── TOAST ── -->
+<div id="toast"></div>
 
 <!-- ── APP ── -->
 <div id="app">
@@ -154,9 +176,8 @@
             <button class="src-tab" id="src-upload" onclick="switchSrc('upload')">SUBIR NUEVO</button>
             <button class="src-tab" id="src-url" onclick="switchSrc('url')">URL EXTERNA</button>
           </div>
-
           <div id="src-repo-pane">
-            <div style="display:flex;gap:6px">
+            <div style="display:flex;gap:7px">
               <select class="sel" id="data-sel" style="flex:1"></select>
               <button class="btn sm" onclick="loadFromRepo()">CARGAR</button>
             </div>
@@ -170,7 +191,7 @@
             </div>
           </div>
           <div id="src-url-pane" style="display:none">
-            <div style="display:flex;gap:6px">
+            <div style="display:flex;gap:7px">
               <input class="inp" id="f-ext-url" placeholder="https://..." style="flex:1">
               <button class="btn sm" onclick="loadExtUrl()">IR</button>
             </div>
@@ -179,7 +200,7 @@
 
         <!-- Layers -->
         <div class="sec" id="sec-layers" style="display:none">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:11px">
             <label class="lbl" style="margin:0">CAPAS</label>
             <button class="btn sm" onclick="addLayer()">+ CAPA</button>
           </div>
@@ -189,17 +210,17 @@
         <!-- Viewport -->
         <div class="sec" id="sec-vp" style="display:none">
           <label class="lbl">VIEWPORT</label>
-          <div style="font-size:.48rem;opacity:.55;letter-spacing:.5px;margin-bottom:4px">Navegá el mapa. La vista se guarda al guardar.</div>
+          <div style="font-size:10px;opacity:.6;margin-bottom:5px">Navegá el mapa. La vista se guarda al guardar.</div>
           <div id="vp-info"></div>
         </div>
 
         <!-- Actions -->
         <div class="sec">
-          <div class="row" style="margin-bottom:6px">
+          <div class="row" style="margin-bottom:7px">
             <button class="btn full" onclick="saveMap()" style="flex:2">GUARDAR</button>
             <button class="btn" id="btn-ver" onclick="openViewer()" style="display:none;flex:1">VER →</button>
           </div>
-          <button class="btn danger full" id="btn-del" onclick="deleteMap()" style="display:none">ELIMINAR</button>
+          <button class="btn danger full" id="btn-del" onclick="deleteMap()" style="display:none">ELIMINAR MAPA</button>
         </div>
       </div>
 
@@ -236,20 +257,20 @@ const PALETTES = [
   {n:'Cian-Mag', c:['#00F2FF','#6699CC','#CC66AA','#EE33CC','#FF00FF']},
 ];
 
-let pat = null;
-let previewMap = null;
+let pat = null, previewMap = null;
 let geoData = null, geoStoredPath = null, geoNewFile = null;
 let numFields = [], mapSha = null, mapSlug = null;
 let layerSeq = 0;
 const layers = [];
 
-// ── AUTH ──────────────────────────────────────────────────────────────────
+// ── INIT ──────────────────────────────────────────────────────────────────
 window.addEventListener('DOMContentLoaded', () => {
   const saved = localStorage.getItem('centuria-gh-pat');
   if (saved) { pat = saved; initApp(); }
   initDrop();
 });
 
+// ── AUTH ──────────────────────────────────────────────────────────────────
 async function connect() {
   const token = document.getElementById('pat-input').value.trim();
   const errEl = document.getElementById('conn-err');
@@ -260,13 +281,13 @@ async function connect() {
     const res = await fetch(`${GH_API}/repos/${REPO}`, {
       headers: { Authorization: `Bearer ${token}` }
     });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status} — verificá permisos del token`);
     pat = token;
     localStorage.setItem('centuria-gh-pat', pat);
     initApp();
   } catch(e) {
-    errEl.textContent = '✗ TOKEN INVÁLIDO O SIN ACCESO AL REPO';
-    errEl.style.cssText = 'display:block;margin-top:10px;font-size:.46rem;color:#ff6060;letter-spacing:2px;';
+    errEl.textContent = '✗ ' + e.message;
+    errEl.style.display = 'block';
   }
 }
 
@@ -280,22 +301,27 @@ async function ghGet(path) {
   const res = await fetch(`${GH_API}/repos/${REPO}/contents${path}?ref=${BRANCH}`, {
     headers: { Authorization: `Bearer ${pat}`, Accept: 'application/vnd.github.v3+json' }
   });
-  if (!res.ok) { const e = await res.json(); throw new Error(e.message || `GH ${res.status}`); }
+  if (!res.ok) {
+    const e = await res.json().catch(()=>({}));
+    throw new Error(e.message || `GitHub ${res.status}`);
+  }
   return res.json();
 }
 
 async function ghPut(path, content, message, sha = null) {
-  const body = {
-    message, branch: BRANCH,
-    content: btoa(unescape(encodeURIComponent(content)))
-  };
+  // Encode UTF-8 content to base64
+  const encoded = btoa(unescape(encodeURIComponent(content)));
+  const body = { message, branch: BRANCH, content: encoded };
   if (sha) body.sha = sha;
   const res = await fetch(`${GH_API}/repos/${REPO}/contents${path}`, {
     method: 'PUT',
     headers: { Authorization: `Bearer ${pat}`, Accept: 'application/vnd.github.v3+json', 'Content-Type': 'application/json' },
     body: JSON.stringify(body)
   });
-  if (!res.ok) { const e = await res.json(); throw new Error(e.message || `GH ${res.status}`); }
+  if (!res.ok) {
+    const e = await res.json().catch(()=>({}));
+    throw new Error(e.message || `GitHub ${res.status}`);
+  }
   return res.json();
 }
 
@@ -305,11 +331,14 @@ async function ghDelete(path, message, sha) {
     headers: { Authorization: `Bearer ${pat}`, Accept: 'application/vnd.github.v3+json', 'Content-Type': 'application/json' },
     body: JSON.stringify({ message, branch: BRANCH, sha })
   });
-  if (!res.ok) { const e = await res.json(); throw new Error(e.message || `GH ${res.status}`); }
+  if (!res.ok) {
+    const e = await res.json().catch(()=>({}));
+    throw new Error(e.message || `GitHub ${res.status}`);
+  }
   return res.json();
 }
 
-// ── INIT APP ──────────────────────────────────────────────────────────────
+// ── APP INIT ──────────────────────────────────────────────────────────────
 function initApp() {
   document.getElementById('connect-screen').style.display = 'none';
   document.getElementById('app').style.display = 'block';
@@ -323,13 +352,13 @@ function initPreviewMap() {
   previewMap = new maplibregl.Map({
     container: 'preview-map',
     style: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
-    center: [-58.42, -34.61], zoom: 12, bearing: 0, pitch: 0
+    center: [-58.42,-34.61], zoom:12, bearing:0, pitch:0
   });
   previewMap.addControl(new maplibregl.NavigationControl(), 'top-right');
   previewMap.on('move', () => {
     const c = previewMap.getCenter();
     document.getElementById('vp-info').textContent =
-      `lng ${c.lng.toFixed(4)} lat ${c.lat.toFixed(4)} | zoom ${previewMap.getZoom().toFixed(1)} | bearing ${previewMap.getBearing().toFixed(0)}° pitch ${previewMap.getPitch().toFixed(0)}°`;
+      `lng ${c.lng.toFixed(4)}  lat ${c.lat.toFixed(4)}  zoom ${previewMap.getZoom().toFixed(1)}  bearing ${previewMap.getBearing().toFixed(0)}°  pitch ${previewMap.getPitch().toFixed(0)}°`;
   });
 }
 
@@ -340,15 +369,16 @@ function refreshPreview() {
     try { if(previewMap.getSource('p')) previewMap.removeSource('p'); } catch{}
     previewMap.addSource('p', { type:'geojson', data: geoData });
     layers.forEach(l => {
-      if (!l.field) return;
-      const stops = calcStops(geoData, l.field);
-      const ce = ['interpolate',['linear'],['get',l.field], ...stops.flatMap((v,i)=>[v,l.colors[i]])];
+      if (!l.field || !l.stops?.length) return;
+      const ce = ['interpolate',['linear'],['get',l.field], ...l.stops.flatMap((v,i) => [v, l.colors[i]])];
       const is3d = l.type === 'fill-extrusion';
-      previewMap.addLayer({ id:l.id, type:l.type, source:'p', paint: is3d ? {
-        'fill-extrusion-color':ce,'fill-extrusion-opacity':l.opacity,
-        'fill-extrusion-height':['interpolate',['linear'],['get',l.field],stops[0],20,stops[4],400],
-        'fill-extrusion-base':0
-      } : { 'fill-color':ce, 'fill-opacity':l.opacity } });
+      previewMap.addLayer({ id:l.id, type:l.type, source:'p',
+        paint: is3d ? {
+          'fill-extrusion-color':ce, 'fill-extrusion-opacity':l.opacity,
+          'fill-extrusion-height':['interpolate',['linear'],['get',l.field],l.stops[0],20,l.stops[4],400],
+          'fill-extrusion-base':0
+        } : { 'fill-color':ce, 'fill-opacity':l.opacity }
+      });
       if (!l.active) previewMap.setLayoutProperty(l.id,'visibility','none');
     });
   };
@@ -356,28 +386,33 @@ function refreshPreview() {
   else previewMap.once('styledata', () => { if(previewMap.isStyleLoaded()) run(); });
 }
 
-// ── DATA FILES (from /data/ in repo) ─────────────────────────────────────
+// ── DATA FILES ────────────────────────────────────────────────────────────
 async function loadDataFiles() {
   try {
     const files = await ghGet('/data');
-    const geojsons = files.filter(f => f.name.endsWith('.geojson'));
     const sel = document.getElementById('data-sel');
-    sel.innerHTML = geojsons.map(f => `<option value="${f.path}">${f.name}</option>`).join('');
-  } catch { document.getElementById('data-sel').innerHTML = '<option>No se pudo listar /data/</option>'; }
+    const geojsons = Array.isArray(files) ? files.filter(f=>f.name.endsWith('.geojson')) : [];
+    sel.innerHTML = geojsons.length
+      ? geojsons.map(f=>`<option value="${f.path}">${f.name}</option>`).join('')
+      : '<option>No hay archivos en /data/</option>';
+  } catch(e) {
+    document.getElementById('data-sel').innerHTML = '<option>Error listando /data/</option>';
+    showErr('Error listando /data/: ' + e.message);
+  }
 }
 
 async function loadFromRepo() {
   const path = document.getElementById('data-sel').value;
-  if (!path) return;
+  if (!path || path.startsWith('No') || path.startsWith('Error')) return;
   st('CARGANDO DATOS DEL REPO...');
   try {
-    const fileData = await ghGet('/' + path.replace('data/','data/'));
+    const fileData = await ghGet('/' + path);
     const text = decodeURIComponent(escape(atob(fileData.content.replace(/\n/g,''))));
     geoData = JSON.parse(text);
     geoStoredPath = '/' + path;
     geoNewFile = null;
     onGeoLoaded();
-  } catch(e) { st('ERROR: ' + e.message); }
+  } catch(e) { showErr('Error cargando GeoJSON: ' + e.message); st('ERROR'); }
 }
 
 // ── FILE UPLOAD ───────────────────────────────────────────────────────────
@@ -392,10 +427,9 @@ async function handleFile(file) {
   if (!file) return;
   st('LEYENDO ARCHIVO...');
   document.getElementById('drop-name').textContent = file.name;
-  geoNewFile = file;
-  geoStoredPath = null;
+  geoNewFile = file; geoStoredPath = null;
   try { geoData = JSON.parse(await file.text()); onGeoLoaded(); }
-  catch { st('ERROR: JSON INVÁLIDO'); }
+  catch { showErr('Archivo inválido: no es un GeoJSON válido.'); st('ERROR'); }
 }
 
 async function loadExtUrl() {
@@ -403,38 +437,38 @@ async function loadExtUrl() {
   if (!url) return;
   st('CARGANDO URL...');
   try {
-    geoData = await fetch(url).then(r => r.json());
-    geoStoredPath = url;
-    geoNewFile = null;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    geoData = await res.json();
+    geoStoredPath = url; geoNewFile = null;
     onGeoLoaded();
-  } catch { st('ERROR AL CARGAR URL'); }
+  } catch(e) { showErr('Error cargando URL: ' + e.message); st('ERROR'); }
 }
 
 // ── GEO LOADED ────────────────────────────────────────────────────────────
 function onGeoLoaded() {
   numFields = Object.entries(geoData.features?.[0]?.properties || {})
     .filter(([,v]) => typeof v==='number' && !isNaN(v)).map(([k]) => k);
-  st(`${geoData.features?.length || 0} features · ${numFields.length} campos numéricos`);
+  st(`✓  ${geoData.features?.length || 0} features · ${numFields.length} campos numéricos`);
   document.getElementById('sec-layers').style.display = 'block';
   document.getElementById('sec-vp').style.display = 'block';
   if (layers.length === 0) addLayer();
-  else renderLayers();
-  fitToGeo();
-  refreshPreview();
+  else { layers.forEach(l => { if(l.field && (!l.stops||!l.stops.length)) l.stops=calcStops(geoData,l.field); }); renderLayers(); }
+  fitToGeo(); refreshPreview();
 }
 
 function calcStops(gj, field) {
   const vals = (gj.features||[]).map(f=>f.properties[field]).filter(v=>typeof v==='number'&&!isNaN(v)).sort((a,b)=>a-b);
   if (!vals.length) return [0,25,50,75,100];
   const p = pct => vals[Math.max(0,Math.floor(pct*(vals.length-1)))];
-  return [p(0),p(0.25),p(0.5),p(0.75),p(1)].map(v=>+v.toFixed(2));
+  return [p(0),p(0.25),p(0.5),p(0.75),p(1)].map(v => Math.round(v*100)/100);
 }
 
 function fitToGeo() {
   if (!geoData?.features?.length || !previewMap) return;
   let n=-90,s=90,e=-180,w=180;
   const proc=([lng,lat])=>{if(lng<w)w=lng;if(lng>e)e=lng;if(lat<s)s=lat;if(lat>n)n=lat;};
-  geoData.features.forEach(f => {
+  geoData.features.forEach(f=>{
     const g=f.geometry;
     if(g.type==='Polygon') g.coordinates.forEach(r=>r.forEach(proc));
     else if(g.type==='MultiPolygon') g.coordinates.forEach(p=>p.forEach(r=>r.forEach(proc)));
@@ -447,7 +481,11 @@ function fitToGeo() {
 // ── LAYERS ────────────────────────────────────────────────────────────────
 function addLayer() {
   const id = 'l'+(++layerSeq);
-  layers.push({id, label:'Capa '+layerSeq, field:numFields[0]||'', type:'fill', paletteIdx:0, colors:[...PALETTES[0].c], opacity:0.6, active:true});
+  const field = numFields[0] || '';
+  const stops = (geoData && field) ? calcStops(geoData, field) : [0,25,50,75,100];
+  layers.push({ id, label:'Capa '+layerSeq, field, type:'fill',
+    paletteIdx:0, colors:[...PALETTES[0].c], stops, opacity:0.6, active:true,
+    showLegend:true, legendLabel:'' });
   renderLayers();
   if (geoData) refreshPreview();
 }
@@ -463,10 +501,33 @@ function updateLayer(id, key, val) {
   const l = layers.find(l=>l.id===id);
   if (!l) return;
   l[key] = val;
-  if (key==='paletteIdx') l.colors=[...PALETTES[val].c];
-  if (['field','type','paletteIdx','opacity','active'].includes(key)) refreshPreview();
+  if (key==='paletteIdx') l.colors = [...PALETTES[val].c];
+  // Recalculate stops when field changes
+  if (key==='field' && geoData) {
+    l.stops = calcStops(geoData, val);
+    renderLayers();
+  }
+  if (['field','type','paletteIdx','opacity','active','stops'].includes(key)) refreshPreview();
   if (key==='type'||key==='paletteIdx') renderLayers();
   if (key==='label') { const el=document.querySelector(`#card-${id} .lname-el`); if(el) el.textContent=val; }
+}
+
+function updateStop(id, idx, val) {
+  const l = layers.find(l=>l.id===id);
+  if (!l) return;
+  l.stops[idx] = parseFloat(val) || 0;
+  // Update gradient preview
+  const prev = document.getElementById(`stops-prev-${id}`);
+  if (prev) prev.style.background = `linear-gradient(to right,${l.colors.join(',')})`;
+  refreshPreview();
+}
+
+function recalcStops(id) {
+  const l = layers.find(l=>l.id===id);
+  if (!l || !geoData) return;
+  l.stops = calcStops(geoData, l.field);
+  renderLayers();
+  refreshPreview();
 }
 
 function toggleCard(id) { document.getElementById(`bd-${id}`).classList.toggle('open'); }
@@ -477,35 +538,73 @@ function renderLayers() {
       <div class="lcard-hd" onclick="toggleCard('${l.id}')">
         <span class="lnum">${i+1}</span>
         <span class="lname-el">${l.label}</span>
-        <span style="font-size:.4rem;opacity:.3">▼</span>
+        <span class="lcard-arrow">▼</span>
       </div>
       <div class="lcard-bd" id="bd-${l.id}">
-        <label class="lbl">NOMBRE</label>
-        <input class="inp" value="${l.label}" style="margin-bottom:8px" oninput="updateLayer('${l.id}','label',this.value)">
-        <label class="lbl">CAMPO</label>
-        <select class="sel" style="margin-bottom:8px" onchange="updateLayer('${l.id}','field',this.value)">
+
+        <label class="lbl">NOMBRE DE LA CAPA</label>
+        <input class="inp" value="${l.label}" style="margin-bottom:12px"
+          oninput="updateLayer('${l.id}','label',this.value)">
+
+        <label class="lbl">CAMPO A VISUALIZAR</label>
+        <select class="sel" style="margin-bottom:12px" onchange="updateLayer('${l.id}','field',this.value)">
           ${numFields.map(f=>`<option value="${f}"${f===l.field?' selected':''}>${f}</option>`).join('')}
         </select>
-        <label class="lbl">TIPO</label>
-        <div class="row" style="margin-bottom:8px">
-          <button class="btn sm" style="${l.type==='fill'?'background:var(--cyan);color:#000':''}" onclick="updateLayer('${l.id}','type','fill')">PLANO</button>
-          <button class="btn sm" style="${l.type==='fill-extrusion'?'background:var(--cyan);color:#000':''}" onclick="updateLayer('${l.id}','type','fill-extrusion')">3D</button>
+
+        <label class="lbl">TIPO DE CAPA</label>
+        <div class="row" style="margin-bottom:12px">
+          <button class="btn sm" style="${l.type==='fill'?'background:var(--cyan);color:#000':''}"
+            onclick="updateLayer('${l.id}','type','fill')">PLANO</button>
+          <button class="btn sm" style="${l.type==='fill-extrusion'?'background:var(--cyan);color:#000':''}"
+            onclick="updateLayer('${l.id}','type','fill-extrusion')">3D</button>
         </div>
-        <label class="lbl">PALETA</label>
-        <div class="pal-grid" style="margin-bottom:8px">
-          ${PALETTES.map((p,pi)=>`<div class="pal-sw${pi===l.paletteIdx?' on':''}" style="background:linear-gradient(to right,${p.c.join(',')})" onclick="updateLayer('${l.id}','paletteIdx',${pi})" title="${p.n}"></div>`).join('')}
+
+        <label class="lbl">PALETA DE COLOR</label>
+        <div class="pal-grid" style="margin-bottom:12px">
+          ${PALETTES.map((p,pi)=>`<div class="pal-sw${pi===l.paletteIdx?' on':''}"
+            style="background:linear-gradient(to right,${p.c.join(',')})"
+            onclick="updateLayer('${l.id}','paletteIdx',${pi})" title="${p.n}"></div>`).join('')}
         </div>
+
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+          <label class="lbl" style="margin:0">CORTES DE COLOR</label>
+          <button class="btn sm" onclick="recalcStops('${l.id}')">↺ AUTO</button>
+        </div>
+        <div id="stops-prev-${l.id}" class="stops-preview"
+          style="background:linear-gradient(to right,${l.colors.join(',')})"></div>
+        <div class="stops-wrap">
+          ${(l.stops||[0,25,50,75,100]).map((s,si)=>`
+            <input type="number" class="stop-inp" value="${s}" step="any"
+              onchange="updateStop('${l.id}',${si},this.value)" title="Stop ${si+1}">
+          `).join('')}
+        </div>
+        <div style="display:flex;justify-content:space-between;margin-bottom:12px">
+          ${(l.colors||[]).map((c,ci)=>`<span style="width:${100/l.colors.length}%;height:4px;background:${c};display:inline-block"></span>`).join('')}
+        </div>
+
         <label class="lbl">OPACIDAD</label>
-        <div class="op-row" style="margin-bottom:8px">
-          <input type="range" class="op-sl" min="0" max="1" step="0.01" value="${l.opacity}" style="--p:${l.opacity*100}%;flex:1"
+        <div class="op-row" style="margin-bottom:12px">
+          <input type="range" class="op-sl" min="0" max="1" step="0.01" value="${l.opacity}"
+            style="--p:${l.opacity*100}%;flex:1"
             oninput="updateLayer('${l.id}','opacity',parseFloat(this.value));this.style.setProperty('--p',(this.value*100)+'%');this.nextElementSibling.textContent=parseFloat(this.value).toFixed(2)">
           <span class="op-val">${l.opacity.toFixed(2)}</span>
         </div>
-        <label class="lbl" style="display:flex;align-items:center;gap:6px;cursor:pointer">
-          <input type="checkbox" ${l.active?'checked':''} onchange="updateLayer('${l.id}','active',this.checked)">
+
+        <label class="lbl">LEYENDA</label>
+        <label class="ck-row" style="margin-bottom:7px">
+          <input type="checkbox" ${l.showLegend?'checked':''}
+            onchange="updateLayer('${l.id}','showLegend',this.checked)">
+          MOSTRAR EN LEYENDA
+        </label>
+        <input class="inp" placeholder="Etiqueta (vacío = nombre de capa)" value="${l.legendLabel||''}"
+          style="margin-bottom:12px" oninput="updateLayer('${l.id}','legendLabel',this.value)">
+
+        <label class="ck-row" style="margin-bottom:12px">
+          <input type="checkbox" ${l.active?'checked':''}
+            onchange="updateLayer('${l.id}','active',this.checked)">
           VISIBLE POR DEFECTO
         </label>
-        <div style="height:8px"></div>
+
         <button class="btn danger sm" onclick="removeLayer('${l.id}')">ELIMINAR CAPA</button>
       </div>
     </div>`).join('');
@@ -515,19 +614,21 @@ function renderLayers() {
 async function saveMap() {
   const title = document.getElementById('f-title').value.trim();
   const slug  = document.getElementById('f-slug').value.trim();
-  if (!title || !slug) { st('ERROR: TÍTULO Y SLUG REQUERIDOS'); return; }
-  if (!geoData)        { st('ERROR: CARGÁ UN GEOJSON PRIMERO'); return; }
+  if (!title || !slug) { showErr('Completá el Título y el Slug antes de guardar.'); return; }
+  if (!geoData)        { showErr('Cargá un GeoJSON antes de guardar.'); return; }
   st('GUARDANDO...');
   try {
-    // 1. Upload new GeoJSON to /data/ if it's a local file
+    // Reset sha if slug changed (new file)
+    if (slug !== mapSlug) mapSha = null;
+
+    // 1. Upload GeoJSON if it's a new local file
     let geojsonPath = geoStoredPath;
     if (geoNewFile) {
       const fname = `/data/${slug}.geojson`;
-      const text  = await geoNewFile.text();
-      // Check if file exists (to get sha for update)
-      let sha = null;
-      try { const ex = await ghGet(fname); sha = ex.sha; } catch{}
-      await ghPut(fname, text, `Add data: ${slug}.geojson`, sha);
+      let existSha = null;
+      try { const ex = await ghGet(fname); existSha = ex.sha; } catch{}
+      const text = await geoNewFile.text();
+      await ghPut(fname, text, `data: ${slug}.geojson`, existSha);
       geojsonPath = fname;
     }
 
@@ -542,34 +643,41 @@ async function saveMap() {
       pitch:   +previewMap.getPitch().toFixed(1),
       layers: layers.map(l => ({
         id:l.id, label:l.label, type:l.type, field:l.field,
-        colors:l.colors, opacity:l.opacity, active:l.active,
-        stops: calcStops(geoData, l.field)
+        colors:l.colors, stops:l.stops, opacity:l.opacity, active:l.active,
+        showLegend: l.showLegend !== false,
+        legendLabel: l.legendLabel || ''
       })),
       updated_at: new Date().toISOString()
     };
 
     // 3. Write /maps/[slug].json
-    const res = await ghPut(`/maps/${slug}.json`, JSON.stringify(config, null, 2),
-      `${mapSha ? 'Update':'Add'} map: ${slug}`, mapSha);
+    const res = await ghPut(`/maps/${slug}.json`,
+      JSON.stringify(config, null, 2),
+      `${mapSha ? 'update':'add'} map: ${slug}`,
+      mapSha
+    );
     mapSha  = res.content.sha;
     mapSlug = slug;
-    st('GUARDADO ✓  — Vercel redeploya en ~30s');
+
+    showOk(`✓ Guardado. Vercel redeploya en ~30s.\nURL: ${window.location.origin}/v/${slug}`);
+    st('GUARDADO ✓');
     showUrl(slug);
     document.getElementById('btn-ver').style.display = '';
     document.getElementById('btn-del').style.display = '';
     loadMapsList();
-  } catch(e) { st('ERROR: ' + e.message); }
+  } catch(e) {
+    showErr(`Error al guardar: ${e.message}`);
+    st('ERROR AL GUARDAR');
+  }
 }
 
 async function deleteMap() {
-  if (!mapSha || !mapSlug || !confirm('¿Eliminar este mapa?')) return;
+  if (!mapSha || !mapSlug || !confirm('¿Eliminar este mapa permanentemente?')) return;
   st('ELIMINANDO...');
   try {
-    await ghDelete(`/maps/${mapSlug}.json`, `Delete map: ${mapSlug}`, mapSha);
-    newMap();
-    loadMapsList();
-    st('ELIMINADO');
-  } catch(e) { st('ERROR: ' + e.message); }
+    await ghDelete(`/maps/${mapSlug}.json`, `delete map: ${mapSlug}`, mapSha);
+    newMap(); loadMapsList(); st('ELIMINADO');
+  } catch(e) { showErr('Error al eliminar: ' + e.message); }
 }
 
 // ── MAP LIST ──────────────────────────────────────────────────────────────
@@ -577,17 +685,16 @@ async function loadMapsList() {
   const el = document.getElementById('maps-list');
   try {
     const files = await ghGet('/maps');
-    const jsonFiles = Array.isArray(files) ? files.filter(f => f.name.endsWith('.json')) : [];
+    const jsonFiles = Array.isArray(files) ? files.filter(f=>f.name.endsWith('.json')) : [];
     if (!jsonFiles.length) { el.innerHTML='<div class="empty">NO HAY MAPAS GUARDADOS</div>'; return; }
-    // Fetch all configs in parallel to get titles
     const configs = await Promise.all(jsonFiles.map(async f => {
       try {
-        const data = await ghGet('/' + f.path);
-        const cfg  = JSON.parse(decodeURIComponent(escape(atob(data.content.replace(/\n/g,'')))));
-        return { slug: cfg.slug, title: cfg.title, sha: f.sha };
-      } catch { return { slug: f.name.replace('.json',''), title: f.name.replace('.json',''), sha: f.sha }; }
+        const d = await ghGet('/'+f.path);
+        const cfg = JSON.parse(decodeURIComponent(escape(atob(d.content.replace(/\n/g,'')))));
+        return { slug:cfg.slug, title:cfg.title, sha:f.sha };
+      } catch { return { slug:f.name.replace('.json',''), title:f.name.replace('.json',''), sha:f.sha }; }
     }));
-    el.innerHTML = configs.map(m => `
+    el.innerHTML = configs.map(m=>`
       <div class="mitem${m.slug===mapSlug?' cur':''}" onclick="loadMapBySlug('${m.slug}')">
         <div class="mitem-dot"></div>
         <div>
@@ -603,34 +710,35 @@ async function loadMapBySlug(slug) {
   try {
     const fileData = await ghGet(`/maps/${slug}.json`);
     const config   = JSON.parse(decodeURIComponent(escape(atob(fileData.content.replace(/\n/g,'')))));
-    mapSha  = fileData.sha;
-    mapSlug = slug;
+    mapSha = fileData.sha; mapSlug = slug;
     document.getElementById('f-title').value = config.title;
     document.getElementById('f-slug').value  = config.slug;
 
-    // Load GeoJSON
     const geoRes = await fetch(config.geojson_url);
+    if (!geoRes.ok) throw new Error('No se pudo cargar el GeoJSON del mapa');
     geoData = await geoRes.json();
-    geoStoredPath = config.geojson_url;
-    geoNewFile = null;
-    numFields = Object.entries(geoData.features?.[0]?.properties||{}).filter(([,v])=>typeof v==='number'&&!isNaN(v)).map(([k])=>k);
+    geoStoredPath = config.geojson_url; geoNewFile = null;
+    numFields = Object.entries(geoData.features?.[0]?.properties||{})
+      .filter(([,v])=>typeof v==='number'&&!isNaN(v)).map(([k])=>k);
 
-    // Restore layers
     layers.length = 0; layerSeq = 0;
-    config.layers.forEach((l,i) => { layerSeq=Math.max(layerSeq,i+1); layers.push({id:l.id,label:l.label,type:l.type,field:l.field,paletteIdx:0,colors:[...l.colors],opacity:l.opacity,active:l.active}); });
+    (config.layers||[]).forEach((l,i) => {
+      layerSeq = Math.max(layerSeq, i+1);
+      layers.push({ id:l.id, label:l.label, type:l.type, field:l.field,
+        paletteIdx:0, colors:[...l.colors], stops:[...(l.stops||[])], opacity:l.opacity, active:l.active,
+        showLegend: l.showLegend !== false, legendLabel: l.legendLabel||'' });
+    });
 
     document.getElementById('sec-layers').style.display = 'block';
     document.getElementById('sec-vp').style.display = 'block';
     document.getElementById('btn-ver').style.display = '';
     document.getElementById('btn-del').style.display = '';
-    renderLayers();
-    showUrl(slug);
+    renderLayers(); showUrl(slug);
     previewMap.flyTo({ center:config.center, zoom:config.zoom, bearing:config.bearing, pitch:config.pitch, duration:800 });
     previewMap.once('idle', refreshPreview);
-    gotoTab('edit');
-    loadMapsList();
+    gotoTab('edit'); loadMapsList();
     st('CARGADO: ' + config.title.toUpperCase());
-  } catch(e) { st('ERROR: ' + e.message); }
+  } catch(e) { showErr('Error al cargar: ' + e.message); st('ERROR'); }
 }
 
 // ── UI HELPERS ────────────────────────────────────────────────────────────
@@ -655,9 +763,8 @@ function newMap() {
   ['url-box','btn-ver','btn-del'].forEach(id=>document.getElementById(id).style.display='none');
   ['sec-layers','sec-vp'].forEach(id=>document.getElementById(id).style.display='none');
   document.getElementById('layers-list').innerHTML='';
-  try { layers.forEach(l=>{if(previewMap.getLayer(l.id))previewMap.removeLayer(l.id);}); if(previewMap.getSource('p'))previewMap.removeSource('p'); } catch{}
-  gotoTab('edit');
-  st('NUEVO MAPA');
+  try { layers.forEach(l=>{try{if(previewMap.getLayer(l.id))previewMap.removeLayer(l.id);}catch{}}); if(previewMap.getSource('p'))previewMap.removeSource('p'); } catch{}
+  gotoTab('edit'); st('NUEVO MAPA');
 }
 
 function autoSlug() {
@@ -685,6 +792,24 @@ function openViewer() {
 }
 
 function st(msg) { document.getElementById('st').textContent = msg; }
+
+function showErr(msg) {
+  const t = document.getElementById('toast');
+  t.className = '';
+  t.textContent = '✗ ' + msg;
+  t.style.display = 'block';
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => t.style.display='none', 6000);
+}
+
+function showOk(msg) {
+  const t = document.getElementById('toast');
+  t.className = 'ok';
+  t.textContent = msg;
+  t.style.display = 'block';
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => t.style.display='none', 4000);
+}
 </script>
 </body>
 </html>

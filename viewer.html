@@ -28,14 +28,22 @@
     .zoom-pct{font-size:.42rem;letter-spacing:1px;opacity:.5;width:26px;text-align:center;}
 
     .sec{padding:12px 20px;border-bottom:1px solid var(--dim);}
-    .sec-lbl{font-size:.44rem;letter-spacing:3px;opacity:.4;margin-bottom:8px;text-transform:uppercase;}
+    .sec-lbl{font-size:10px;letter-spacing:3px;color:rgba(0,242,255,.65);margin-bottom:8px;text-transform:uppercase;font-weight:700;}
 
     .layer-row{display:flex;align-items:center;gap:9px;padding:5px 0;cursor:pointer;user-select:none;transition:opacity .2s;}
     .layer-row:hover{opacity:.8;}
     .layer-row input[type=checkbox]{appearance:none;width:12px;height:12px;flex-shrink:0;border:1px solid var(--cyan);cursor:pointer;position:relative;transition:.2s;}
     .layer-row input[type=checkbox]:checked::after{content:'';position:absolute;inset:2px;background:var(--cyan);}
     .swatch{width:10px;height:10px;border-radius:2px;flex-shrink:0;}
-    .lname{font-size:.56rem;letter-spacing:1px;color:rgba(255,255,255,.85);}
+    .lname{font-size:11px;letter-spacing:1px;color:rgba(255,255,255,.9);font-weight:700;}
+
+    /* ── Legend ── */
+    .legend-item{margin-bottom:12px;}
+    .legend-item:last-child{margin-bottom:0;}
+    .legend-lbl{font-size:10px;letter-spacing:1px;color:rgba(255,255,255,.75);margin-bottom:5px;font-weight:700;}
+    .legend-bar{height:8px;border-radius:3px;margin-bottom:3px;}
+    .legend-vals{display:flex;justify-content:space-between;}
+    .legend-val{font-size:10px;opacity:.55;}
 
     .bm-grid{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-top:4px;}
     .bm-btn{background:rgba(0,242,255,.04);border:1px solid rgba(0,242,255,.18);color:rgba(255,255,255,.6);font-size:9px;letter-spacing:2px;padding:9px 4px;cursor:pointer;font-family:inherit;transition:.2s;text-align:center;}
@@ -102,6 +110,11 @@
       <button class="bm-btn" data-style="satellite">SATÉLITE</button>
     </div>
   </div>
+
+  <div class="sec" id="legend-sec" style="display:none">
+    <div class="sec-lbl">LEYENDA</div>
+    <div id="legend-content"></div>
+  </div>
 </div>
 
 <div class="tooltip" id="tt"></div>
@@ -163,6 +176,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     setupClick();
     setupBasemaps();
     setupZoom();
+    buildLegend();
 
     document.getElementById('loading').style.display = 'none';
     document.getElementById('panel').style.display   = 'block';
@@ -245,6 +259,7 @@ function buildPanel() {
     cb.addEventListener('change', ()=>{
       const lid=cb.closest('[data-lid]').dataset.lid;
       map.setLayoutProperty(lid,'visibility',cb.checked?'visible':'none');
+      buildLegend();
     });
   });
 }
@@ -332,6 +347,42 @@ function setupZoom() {
   apply();
   document.getElementById('zoom-in').onclick =()=>{ scale=Math.min(MAX,+(scale+STEP).toFixed(1)); apply(); };
   document.getElementById('zoom-out').onclick=()=>{ scale=Math.max(MIN,+(scale-STEP).toFixed(1)); apply(); };
+}
+
+// ── LEGEND ────────────────────────────────────────────────────────────────
+function buildLegend() {
+  const visLayers = (config.layers||[]).filter(l => {
+    if (l.showLegend === false) return false;
+    try { return map.getLayoutProperty(l.id,'visibility')==='visible'; } catch{ return l.active; }
+  });
+  const sec = document.getElementById('legend-sec');
+  const content = document.getElementById('legend-content');
+  if (!visLayers.length) { sec.style.display='none'; return; }
+  sec.style.display = 'block';
+  content.innerHTML = visLayers.map(l => {
+    const label  = l.legendLabel || l.label;
+    const stops  = l.stops || [];
+    const colors = l.colors || [];
+    const min    = stops[0]   != null ? fmtVal(stops[0])   : '';
+    const mid    = stops[2]   != null ? fmtVal(stops[2])   : '';
+    const max    = stops[stops.length-1] != null ? fmtVal(stops[stops.length-1]) : '';
+    const grad   = colors.join(',');
+    return `<div class="legend-item">
+      <div class="legend-lbl">${label}</div>
+      <div class="legend-bar" style="background:linear-gradient(to right,${grad})"></div>
+      <div class="legend-vals">
+        <span class="legend-val">${min}</span>
+        <span class="legend-val">${mid}</span>
+        <span class="legend-val">${max}</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function fmtVal(v) {
+  if (typeof v !== 'number') return String(v);
+  if (Math.abs(v) >= 1000) return Math.round(v).toLocaleString('es-AR');
+  return v % 1 === 0 ? v.toString() : v.toFixed(1);
 }
 
 // ── UTILS ─────────────────────────────────────────────────────────────────
