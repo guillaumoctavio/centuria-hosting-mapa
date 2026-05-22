@@ -75,17 +75,22 @@
         .map-card:hover .card-icon { background: var(--cyan); color: #000; box-shadow: var(--cyan-glow); }
         
         .map-card h2 { font-size: 1.1rem; letter-spacing: 3px; margin-bottom: 20px; font-weight: 800; color: #fff; text-align: center; border-bottom: 1px solid var(--cyan-dim); padding-bottom: 15px; width: 100%; }
-        .map-card .sub-info { font-size: 0.75rem; font-style: italic; opacity: 0.7; margin-bottom: 30px; text-align: center; color: #fff; }
+        .map-card .sub-info { font-size: 0.72rem; opacity: 0.6; margin-bottom: 20px; text-align: center; color: #fff; letter-spacing: 1px; }
 
-        .electoral-accordion { width: 100%; display: flex; flex-direction: column; gap: 12px; }
-        .acc-trigger { width: 100%; background: rgba(0, 229, 255, 0.08); border: 1px solid rgba(0, 229, 255, 0.3); color: var(--cyan); padding: 16px; font-size: 0.75rem; letter-spacing: 2px; cursor: pointer; text-align: center; transition: 0.3s; font-family: inherit; font-weight: 800; }
-        .acc-trigger:hover { background: var(--cyan); color: #000; }
-        
-        .acc-content { max-height: 0; overflow: hidden; transition: max-height 0.5s ease-out; opacity: 0; display: flex; flex-direction: column; gap: 8px; }
-        .acc-content.open { max-height: 350px; opacity: 1; padding: 10px 0; }
-        
-        .btn-mini { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.15); color: #fff; text-align: center; padding: 14px; font-size: 0.7rem; letter-spacing: 2px; cursor: pointer; font-family: inherit; transition: 0.2s; font-weight: 400; }
-        .btn-mini:hover { background: #fff; color: #000; font-weight: 800; }
+        /* Secciones planas dentro de cada card */
+        .card-sections { width: 100%; display: flex; flex-direction: column; gap: 16px; }
+        .card-sec { width: 100%; }
+        .card-sec-lbl { font-size: 0.5rem; letter-spacing: 3px; color: var(--cyan); opacity: 0.65; margin-bottom: 8px; font-weight: 800; }
+        .card-sec-btns { display: flex; flex-direction: column; gap: 6px; }
+
+        .btn-mini { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.12); color: #fff; text-align: center; padding: 13px; font-size: 0.68rem; letter-spacing: 2px; cursor: pointer; font-family: inherit; transition: 0.2s; font-weight: 400; width: 100%; }
+        .btn-mini:hover { background: rgba(255,255,255,0.12); border-color: rgba(255,255,255,0.4); font-weight: 800; }
+        .btn-mini.editor-btn { background: rgba(0,242,255,0.07); border: 1px solid rgba(0,242,255,0.5); color: var(--cyan); font-weight: 800; font-size: 0.75rem; padding: 16px; }
+        .btn-mini.editor-btn:hover { background: var(--cyan); color: #000; }
+
+        /* Lista de mapas guardados */
+        #saved-maps-list { display: flex; flex-direction: column; gap: 6px; }
+        .saved-empty { font-size: 0.6rem; opacity: 0.4; letter-spacing: 2px; padding: 8px 0; }
 
         .nav-arrow { background: rgba(0,0,0,0.5); border: 1px solid var(--cyan-dim); color: var(--cyan); width: 65px; height: 65px; cursor: pointer; font-size: 1.8rem; transition: 0.3s; z-index: 310; border-radius: 50%; position: absolute; top: 50%; transform: translateY(-50%); backdrop-filter: blur(5px); }
         .nav-arrow:hover { background: var(--cyan); color: #000; border-color: var(--cyan); box-shadow: 0 0 30px var(--cyan); }
@@ -255,6 +260,7 @@
                 setTimeout(() => { isOrbiting = true; orbitStartTime = clock.getElapsedTime(); }, 100);
                 document.getElementById('phase-selection').style.display = 'flex';
                 gsap.to('#phase-selection', { opacity: 1, duration: 0.8 });
+                loadSavedMaps();
             } else {
                 camera.position.set(250, 150, 250);
                 camera.lookAt(TARGET);
@@ -322,7 +328,7 @@
             if (document.getElementById('pass').value === 'centuria2026') {
                 sessionStorage.setItem('centuria_auth', '1');
                 isOrbiting = false;
-                gsap.to(camera.position, { y: 1200, z: -200, duration: 4, ease: 'power3.inOut', onComplete: () => { document.getElementById('phase-selection').style.display = 'flex'; gsap.to('#phase-selection', { opacity: 1, duration: 1.5 }); } });
+                gsap.to(camera.position, { y: 1200, z: -200, duration: 4, ease: 'power3.inOut', onComplete: () => { document.getElementById('phase-selection').style.display = 'flex'; gsap.to('#phase-selection', { opacity: 1, duration: 1.5 }); loadSavedMaps(); } });
                 gsap.to('#phase-login', { opacity: 0, duration: 0.8, onComplete: () => { document.getElementById('phase-login').style.display = 'none'; } });
             }
         }
@@ -339,75 +345,72 @@
             <button class="nav-arrow prev" onclick="changeSlide(-1)"> < </button>
             <div class="slides-wrapper">
                 
+                <!-- CARD 1: DEMOGRÁFICO -->
                 <div class="map-card active">
                     <div class="card-icon"><div>👥</div></div>
                     <h2>ANÁLISIS DEMOGRÁFICO</h2>
                     <p class="sub-info">Composición y distribución poblacional a escala micro-territorial.</p>
-                    
-                    <div class="electoral-accordion">
-                        <div class="acc-item">
-                            <button class="acc-trigger" onclick="toggleAcc('demo-densidad')">DENSIDAD POBLACIONAL</button>
-                            <div id="acc-demo-densidad" class="acc-content">
-                                <button class="btn-mini" onclick="window.open('mapa1.html', '_blank')">DENSIDAD POR UNIDAD MÍNIMA TERRITORIAL</button>
+                    <div class="card-sections">
+                        <div class="card-sec">
+                            <div class="card-sec-lbl">DENSIDAD POBLACIONAL</div>
+                            <div class="card-sec-btns">
+                                <button class="btn-mini" onclick="window.open('mapa1.html','_blank')">DENSIDAD POR UNIDAD MÍNIMA TERRITORIAL</button>
                             </div>
                         </div>
-
-                        <div class="acc-item">
-                            <button class="acc-trigger" onclick="toggleAcc('demo-composicion')">COMPOSICIÓN SOCIAL</button>
-                            <div id="acc-demo-composicion" class="acc-content">
-                                <button class="btn-mini" onclick="window.open('mapa2.html', '_blank')">DISTRIBUCIÓN POR GÉNERO Y GRUPO ETARIO</button>
+                        <div class="card-sec">
+                            <div class="card-sec-lbl">COMPOSICIÓN SOCIAL</div>
+                            <div class="card-sec-btns">
+                                <button class="btn-mini" onclick="window.open('mapa2.html','_blank')">DISTRIBUCIÓN POR GÉNERO Y GRUPO ETARIO</button>
                             </div>
                         </div>
                     </div>
                 </div>
 
+                <!-- CARD 2: ELECTORAL -->
                 <div class="map-card">
                     <div class="card-icon"><div>🗳</div></div>
                     <h2>ANÁLISIS ELECTORAL</h2>
                     <p class="sub-info">Resultados electorales y flujos de votación estratégicos.</p>
-                    
-                    <div class="electoral-accordion">
-                        <div class="acc-item">
-                            <button class="acc-trigger" onclick="toggleAcc('puente')">EL PUENTE ESTRATÉGICO</button>
-                            <div id="acc-puente" class="acc-content">
-                                <button class="btn-mini" onclick="window.open('mapa3.html', '_blank')">POBLACIÓN VS CIUDADANÍA</button>
+                    <div class="card-sections">
+                        <div class="card-sec">
+                            <div class="card-sec-lbl">EL PUENTE ESTRATÉGICO</div>
+                            <div class="card-sec-btns">
+                                <button class="btn-mini" onclick="window.open('mapa3.html','_blank')">POBLACIÓN VS CIUDADANÍA</button>
                             </div>
                         </div>
-
-                        <div class="acc-item">
-                            <button class="acc-trigger" onclick="toggleAcc('2023')">ELECCIONES 2023</button>
-                            <div id="acc-2023" class="acc-content">
-                                <button class="btn-mini" onclick="window.open('mapa4.html', '_blank')">PASO</button>
-                                <button class="btn-mini" onclick="window.open('mapa5.html', '_blank')">GENERALES</button>
-                                <button class="btn-mini" onclick="window.open('mapa6.html', '_blank')">BALOTAJE</button>
+                        <div class="card-sec">
+                            <div class="card-sec-lbl">ELECCIONES 2023</div>
+                            <div class="card-sec-btns">
+                                <button class="btn-mini" onclick="window.open('mapa4.html','_blank')">PASO</button>
+                                <button class="btn-mini" onclick="window.open('mapa5.html','_blank')">GENERALES</button>
+                                <button class="btn-mini" onclick="window.open('mapa6.html','_blank')">BALOTAJE</button>
                             </div>
                         </div>
-
-                        <div class="acc-item">
-                            <button class="acc-trigger" onclick="toggleAcc('2025')">ELECCIONES 2025</button>
-                            <div id="acc-2025" class="acc-content">
-                                <button class="btn-mini" onclick="window.open('mapa7.html', '_blank')">LEGISLATIVAS</button>
+                        <div class="card-sec">
+                            <div class="card-sec-lbl">ELECCIONES 2025</div>
+                            <div class="card-sec-btns">
+                                <button class="btn-mini" onclick="window.open('mapa7.html','_blank')">LEGISLATIVAS</button>
                             </div>
                         </div>
                     </div>
                 </div>
 
+                <!-- CARD 3: HERRAMIENTAS -->
                 <div class="map-card">
                     <div class="card-icon"><div>⚙</div></div>
                     <h2>HERRAMIENTAS</h2>
-                    <p class="sub-info">Editor de mapas y visualizaciones personalizadas.</p>
-
-                    <div class="electoral-accordion">
-                        <div class="acc-item">
-                            <button class="acc-trigger" onclick="toggleAcc('saved-maps')">MAPAS GUARDADOS</button>
-                            <div id="acc-saved-maps" class="acc-content">
-                                <div id="saved-maps-list" style="font-size:.65rem;letter-spacing:1px;opacity:.7;padding:4px 0">Cargando...</div>
+                    <p class="sub-info">Editor y mapas personalizados.</p>
+                    <div class="card-sections">
+                        <div class="card-sec">
+                            <div class="card-sec-lbl">EDITOR</div>
+                            <div class="card-sec-btns">
+                                <button class="btn-mini editor-btn" onclick="window.open('editor.html','_blank')">✦ CREAR / EDITAR MAPAS</button>
                             </div>
                         </div>
-                    </div>
-
-                    <div style="margin-top:auto;padding-top:20px">
-                        <button class="btn" onclick="window.open('editor.html','_blank')" style="width:100%;padding:14px;font-size:.7rem;letter-spacing:3px;background:rgba(0,242,255,0.08);border-color:var(--cyan);color:var(--cyan);font-weight:800">✦ ABRIR EDITOR</button>
+                        <div class="card-sec">
+                            <div class="card-sec-lbl">MAPAS GUARDADOS</div>
+                            <div id="saved-maps-list"><div class="saved-empty">CARGANDO...</div></div>
+                        </div>
                     </div>
                 </div>
 
@@ -417,28 +420,21 @@
     </div>
 
 <script>
-    function toggleAcc(id) {
-        const content = document.getElementById('acc-' + id);
-        const isOpen = content.classList.contains('open');
-        document.querySelectorAll('.acc-content').forEach(el => el.classList.remove('open'));
-        if (!isOpen) {
-            content.classList.add('open');
-            if (id === 'saved-maps') loadSavedMaps();
-        }
-    }
-
     async function loadSavedMaps() {
         const el = document.getElementById('saved-maps-list');
         try {
             const res = await fetch('/maps/index.json?t=' + Date.now());
-            if (!res.ok) throw new Error('not found');
+            if (!res.ok) throw new Error();
             const maps = await res.json();
-            if (!maps.length) { el.innerHTML = 'Sin mapas guardados aún.'; return; }
+            if (!maps.length) {
+                el.innerHTML = '<div class="saved-empty">SIN MAPAS GUARDADOS AÚN</div>';
+                return;
+            }
             el.innerHTML = maps.map(m =>
                 '<button class="btn-mini" onclick="window.open(\'/v/' + m.slug + '\',\'_blank\')">' + m.title + '</button>'
             ).join('');
         } catch {
-            el.innerHTML = 'Sin mapas guardados.';
+            el.innerHTML = '<div class="saved-empty">SIN MAPAS GUARDADOS</div>';
         }
     }
 
