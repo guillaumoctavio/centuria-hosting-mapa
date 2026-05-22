@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CENTURIA | Strategic Urban Portal</title>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@100;400;800&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <style>
+        :root { 
+            --bg: #000103; --cyan: #00f2ff; --cyan-dim: rgba(0, 242, 255, 0.15); --cyan-glow: 0 0 25px rgba(0, 242, 255, 0.6);
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; cursor: crosshair; }
+        body { background: var(--bg); color: var(--cyan); font-family: 'JetBrains Mono', monospace; height: 100vh; overflow: hidden; }
+        #three-container { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; }
+        .overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: radial-gradient(circle at center, transparent 0%, var(--bg) 115%); z-index: 2; pointer-events: none; }
+        
+        /* LOGIN */
+        #phase-login { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 400px; height: 400px; display: none; opacity: 0; z-index: 200; flex-direction: column; justify-content: center; align-items: center; text-align: center; }
+        .portal-frame { position: absolute; width: 100%; height: 100%; display: flex; justify-content: center; align-items: center; pointer-events: none; }
+        .ring { position: absolute; border-radius: 50%; border: 1px solid var(--cyan-dim); }
+        .r-outer { width: 380px; height: 380px; border-style: dashed; animation: rotateCW 40s linear infinite; opacity: 0.2; }
+        .r-mid { width: 320px; height: 320px; border: 1px solid var(--cyan); border-top-color: transparent; border-bottom-color: transparent; animation: rotateCCW 20s linear infinite; opacity: 0.4; filter: blur(1px); }
+        .r-inner { width: 260px; height: 260px; border: 1px double var(--cyan); opacity: 0.3; animation: rotateCW 12s linear infinite; }
+        .portal-content { position: relative; z-index: 10; background: rgba(0, 1, 3, 0.9); backdrop-filter: blur(25px); border-radius: 50%; width: 280px; height: 280px; display: flex; flex-direction: column; justify-content: center; align-items: center; box-shadow: inset 0 0 40px rgba(0, 242, 255, 0.15); border: 1px solid rgba(0, 242, 255, 0.1); }
+        .portal-name { font-size: 0.55rem; letter-spacing: 3px; opacity: 0.7; margin-bottom: 4px; color: var(--cyan); }
+        h1 { font-weight: 800; letter-spacing: 12px; font-size: 1.4rem; margin-bottom: 20px; text-shadow: var(--cyan-glow); }
+        input { background: transparent; border: none; border-bottom: 1px solid var(--cyan); color: #fff; width: 130px; padding: 8px; text-align: center; margin-bottom: 20px; outline: none; letter-spacing: 6px; font-family: inherit; font-size: 0.85rem; transition: 0.4s; }
+        input:focus { border-bottom-color: #fff; width: 160px; }
+        .btn { background: transparent; border: 1px solid var(--cyan); color: var(--cyan); padding: 12px 24px; letter-spacing: 3px; cursor: pointer; transition: 0.4s; font-weight: 800; font-size: 0.7rem; text-transform: uppercase; }
+        .btn:hover { background: var(--cyan); color: #000; box-shadow: 0 0 30px var(--cyan); }
+
+        /* HUD SELECTION 2026 */
+        #phase-selection { 
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; 
+            display: none; opacity: 0; z-index: 300; 
+            flex-direction: column; justify-content: center; align-items: center;
+            background: 
+                linear-gradient(rgba(0, 242, 255, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0, 242, 255, 0.03) 1px, transparent 1px);
+            background-size: 50px 50px;
+            backdrop-filter: blur(10px);
+        }
+
+        .selection-header { text-align: center; margin-bottom: 50px; z-index: 310; }
+        .selection-header h1 { font-size: 2rem; letter-spacing: 10px; color: #fff; text-shadow: var(--cyan-glow); margin-bottom: 10px; font-weight: 800; }
+        .selection-header p { font-size: 0.8rem; letter-spacing: 4px; color: var(--cyan); opacity: 0.8; font-weight: 100; }
+
+        .carousel-container { position: relative; width: 100%; max-width: 550px; height: 580px; display: flex; align-items: center; justify-content: center; }
+        
+        .map-card { 
+            position: absolute; width: 480px; min-height: 520px; 
+            background: rgba(0, 10, 20, 0.85); 
+            border: 1px solid rgba(0, 229, 255, 0.4); 
+            backdrop-filter: blur(30px); padding: 45px; 
+            display: flex; flex-direction: column; align-items: center; 
+            opacity: 0; pointer-events: none;
+            box-shadow: 0 0 40px rgba(0,0,0,0.9);
+            transition: border-color 0.4s, box-shadow 0.4s, transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        
+        .map-card.active { opacity: 1; pointer-events: all; position: relative; }
+        
+        /* HOVER DINAMISMO */
+        .map-card.active:hover { 
+            transform: scale(1.05) translateY(-15px); 
+            border-color: var(--cyan); 
+            box-shadow: 0 15px 50px rgba(0, 242, 255, 0.2); 
+            z-index: 320;
+        }
+        
+        .card-icon { width: 55px; height: 55px; border: 1px solid var(--cyan); margin-bottom: 30px; transform: rotate(45deg); display: flex; justify-content: center; align-items: center; flex-shrink: 0; transition: 0.4s; }
+        .card-icon div { transform: rotate(-45deg); font-size: 1.5rem; }
+        .map-card:hover .card-icon { background: var(--cyan); color: #000; box-shadow: var(--cyan-glow); }
+        
+        .map-card h2 { font-size: 1.1rem; letter-spacing: 3px; margin-bottom: 20px; font-weight: 800; color: #fff; text-align: center; border-bottom: 1px solid var(--cyan-dim); padding-bottom: 15px; width: 100%; }
+        .map-card .sub-info { font-size: 0.75rem; font-style: italic; opacity: 0.7; margin-bottom: 30px; text-align: center; color: #fff; }
+
+        .electoral-accordion { width: 100%; display: flex; flex-direction: column; gap: 12px; }
+        .acc-trigger { width: 100%; background: rgba(0, 229, 255, 0.08); border: 1px solid rgba(0, 229, 255, 0.3); color: var(--cyan); padding: 16px; font-size: 0.75rem; letter-spacing: 2px; cursor: pointer; text-align: center; transition: 0.3s; font-family: inherit; font-weight: 800; }
+        .acc-trigger:hover { background: var(--cyan); color: #000; }
+        
+        .acc-content { max-height: 0; overflow: hidden; transition: max-height 0.5s ease-out; opacity: 0; display: flex; flex-direction: column; gap: 8px; }
+        .acc-content.open { max-height: 350px; opacity: 1; padding: 10px 0; }
+        
+        .btn-mini { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.15); color: #fff; text-align: center; padding: 14px; font-size: 0.7rem; letter-spacing: 2px; cursor: pointer; font-family: inherit; transition: 0.2s; font-weight: 400; }
+        .btn-mini:hover { background: #fff; color: #000; font-weight: 800; }
+
+        .nav-arrow { background: rgba(0,0,0,0.5); border: 1px solid var(--cyan-dim); color: var(--cyan); width: 65px; height: 65px; cursor: pointer; font-size: 1.8rem; transition: 0.3s; z-index: 310; border-radius: 50%; position: absolute; top: 50%; transform: translateY(-50%); backdrop-filter: blur(5px); }
+        .nav-arrow:hover { background: var(--cyan); color: #000; border-color: var(--cyan); box-shadow: 0 0 30px var(--cyan); }
+        .prev { left: -130px; } .next { right: -130px; }
+
+        @keyframes rotateCW { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        @keyframes rotateCCW { from { transform: rotate(0deg); } to { transform: rotate(-360deg); } }
+    </style>
+</head>
+<body>
+    <div id="three-container"></div>
+    <div class="overlay"></div>
+
+    <div id="phase-login">
+        <div class="portal-frame"><div class="ring r-outer"></div><div class="ring r-mid"></div><div class="ring r-inner"></div></div>
+        <div class="portal-content">
+            <div class="portal-name">PORTAL DE INTELIGENCIA</div>
+            <div class="portal-name">GEOSPACIAL</div>
+            <h1>CENTURIA</h1>
+            <input type="password" id="pass" placeholder="********" onkeydown="if(event.key==='Enter') validate()">
+            <button class="btn" onclick="validate()">INICIAR ACCESO</button>
+        </div>
+    </div>
+
+    <script>
+        /* === MOTOR 3D CORE === */
+        const _dummy = new THREE.Object3D();
+        const _col   = new THREE.Color();
+
+        let scene, camera, renderer, clock;
+        let isOrbiting = false, orbitStartTime = 0;
+        const TARGET      = new THREE.Vector3(20, 5, 20);
+        const ORBIT_R     = 75, ORBIT_SPEED = 0.02, LAND_ANGLE = Math.PI / 4;
+        const GRID        = 9;
+
+        let buildingMesh, windowMesh, pedMesh;
+        let windowData = [], pedData = [], trafficMeshes = [];
+
+        function init3D() {
+            scene = new THREE.Scene();
+            scene.fog = new THREE.FogExp2(0x000103, 0.015);
+            camera = new THREE.PerspectiveCamera(50, innerWidth / innerHeight, 0.1, 1500);
+            renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+            renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+            renderer.setSize(innerWidth, innerHeight);
+            document.getElementById('three-container').appendChild(renderer.domElement);
+            clock = new THREE.Clock();
+
+            window.addEventListener('resize', () => {
+                camera.aspect = innerWidth / innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(innerWidth, innerHeight);
+            });
+
+            scene.add(new THREE.GridHelper(1000, 100, 0x002233, 0x000811));
+
+            // ── Collect building + window data in one pass ──────────────────
+            const buildings = [];
+            for (let i = -GRID; i < GRID; i++) {
+                for (let j = -GRID; j < GRID; j++) {
+                    if ((i % 4 !== 0) && (j % 4 !== 0)) {
+                        const x = i * 18, z = j * 18, h = Math.random() * 20 + 10;
+                        buildings.push({ x, z, h });
+                        for (let row = 1; row < h - 1; row += 1.3) {
+                            for (let col = -1; col <= 1; col++) {
+                                const o = col * 1.6;
+                                windowData.push(
+                                    { wx: x+o,    wy: row, wz: z+3.02, ry: 0,           freq: 0.5+Math.random()*1.5, phase: Math.random()*10 },
+                                    { wx: x+o,    wy: row, wz: z-3.02, ry: Math.PI,     freq: 0.5+Math.random()*1.5, phase: Math.random()*10 },
+                                    { wx: x+3.02, wy: row, wz: z+o,    ry: Math.PI/2,   freq: 0.5+Math.random()*1.5, phase: Math.random()*10 },
+                                    { wx: x-3.02, wy: row, wz: z+o,    ry: -Math.PI/2,  freq: 0.5+Math.random()*1.5, phase: Math.random()*10 }
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+
+            // ── Buildings InstancedMesh (1 draw call) ───────────────────────
+            buildingMesh = new THREE.InstancedMesh(
+                new THREE.BoxGeometry(6, 1, 6),
+                new THREE.MeshBasicMaterial({ color: 0x000a0f }),
+                buildings.length
+            );
+            buildingMesh.frustumCulled = false;
+            buildings.forEach(({ x, z, h }, i) => {
+                _dummy.position.set(x, h / 2, z);
+                _dummy.scale.set(1, h, 1);
+                _dummy.rotation.set(0, 0, 0);
+                _dummy.updateMatrix();
+                buildingMesh.setMatrixAt(i, _dummy.matrix);
+            });
+            buildingMesh.instanceMatrix.needsUpdate = true;
+            scene.add(buildingMesh);
+
+            // ── Windows InstancedMesh (1 draw call, color-based flicker) ───
+            windowMesh = new THREE.InstancedMesh(
+                new THREE.PlaneGeometry(0.7, 0.35),
+                new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.85, depthWrite: false }),
+                windowData.length
+            );
+            windowMesh.frustumCulled = false;
+            windowData.forEach(({ wx, wy, wz, ry, phase }, i) => {
+                _dummy.position.set(wx, wy, wz);
+                _dummy.rotation.set(0, ry, 0);
+                _dummy.scale.set(1, 1, 1);
+                _dummy.updateMatrix();
+                windowMesh.setMatrixAt(i, _dummy.matrix);
+                const b = 0.2 + 0.8 * Math.abs(Math.sin(phase));
+                _col.setRGB(0, b * 0.95, b);
+                windowMesh.setColorAt(i, _col);
+            });
+            windowMesh.instanceMatrix.needsUpdate = true;
+            windowMesh.instanceColor.needsUpdate = true;
+            scene.add(windowMesh);
+
+            // ── Pedestrians InstancedMesh (1 draw call) ─────────────────────
+            pedMesh = new THREE.InstancedMesh(
+                new THREE.SphereGeometry(0.12, 4, 4),
+                new THREE.MeshBasicMaterial({ color: 0x00f2ff }),
+                buildings.length
+            );
+            pedMesh.frustumCulled = false;
+            buildings.forEach(({ x, z }, i) => {
+                pedData.push({ bx: x, bz: z, size: 5.0, progress: Math.random() * 4, speed: 0.008 + Math.random() * 0.008 });
+                _dummy.position.set(x, 0.1, z);
+                _dummy.rotation.set(0, 0, 0);
+                _dummy.scale.set(1, 1, 1);
+                _dummy.updateMatrix();
+                pedMesh.setMatrixAt(i, _dummy.matrix);
+            });
+            pedMesh.instanceMatrix.needsUpdate = true;
+            scene.add(pedMesh);
+
+            // ── Traffic (few meshes, kept individual) ──────────────────────
+            const trafficTex = (() => {
+                const c = document.createElement('canvas'); c.width = c.height = 64;
+                const ctx = c.getContext('2d');
+                const g = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+                g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+                ctx.fillStyle = g; ctx.fillRect(0, 0, 64, 64);
+                return new THREE.CanvasTexture(c);
+            })();
+            const mkTraffic = (x, z, isV, dir) => {
+                const mat = new THREE.MeshBasicMaterial({ color: dir > 0 ? 0x00ffff : 0xff00ff, map: trafficTex, transparent: true, opacity: 0.6, blending: THREE.AdditiveBlending, depthWrite: false });
+                const tr = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 12), mat);
+                const lane = dir * 3.8;
+                if (isV) { tr.rotation.x = -Math.PI/2; tr.position.set(x + lane, 0.05, z + (Math.random()-.5)*40); }
+                else     { tr.rotation.x = -Math.PI/2; tr.rotation.z = Math.PI/2; tr.position.set(x + (Math.random()-.5)*40, 0.1, z + lane); }
+                tr.userData = { isV, speed: (6 + Math.random() * 4) * dir, ox: tr.position.x, oz: tr.position.z };
+                trafficMeshes.push(tr); scene.add(tr);
+            };
+            for (let i = -GRID; i < GRID; i++) {
+                for (let j = -GRID; j < GRID; j++) {
+                    if ((i % 4 === 0) || (j % 4 === 0)) {
+                        if (Math.random() > 0.4) { mkTraffic(i*18, j*18, i%4===0, 1); mkTraffic(i*18, j*18, i%4===0, -1); }
+                    }
+                }
+            }
+
+            animate();
+
+            if (sessionStorage.getItem('centuria_auth')) {
+                // Ya autenticado — saltar directo al menú
+                camera.position.set(TARGET.x + Math.cos(LAND_ANGLE) * ORBIT_R, 25, TARGET.z - Math.sin(LAND_ANGLE) * ORBIT_R);
+                camera.lookAt(TARGET);
+                setTimeout(() => { isOrbiting = true; orbitStartTime = clock.getElapsedTime(); }, 100);
+                document.getElementById('phase-selection').style.display = 'flex';
+                gsap.to('#phase-selection', { opacity: 1, duration: 0.8 });
+            } else {
+                camera.position.set(250, 150, 250);
+                camera.lookAt(TARGET);
+                gsap.to(camera.position, {
+                    x: TARGET.x + Math.cos(LAND_ANGLE) * ORBIT_R, y: 25, z: TARGET.z - Math.sin(LAND_ANGLE) * ORBIT_R,
+                    duration: 6, ease: 'power3.inOut',
+                    onUpdate: () => camera.lookAt(TARGET),
+                    onComplete: () => {
+                        isOrbiting = true; orbitStartTime = clock.getElapsedTime();
+                        setTimeout(() => { document.getElementById('phase-login').style.display = 'flex'; gsap.to('#phase-login', { opacity: 1, duration: 1.5 }); document.getElementById('pass').focus(); }, 1500);
+                    }
+                });
+            }
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const t = clock.getElapsedTime();
+
+            if (isOrbiting) {
+                const a = (t - orbitStartTime) * ORBIT_SPEED + LAND_ANGLE;
+                camera.position.x = TARGET.x + Math.cos(a) * ORBIT_R;
+                camera.position.z = TARGET.z - Math.sin(a) * ORBIT_R;
+                camera.lookAt(TARGET);
+            }
+
+            // Traffic
+            const cycle = (t % 1.5) / 1.5;
+            const fade  = Math.sin(cycle * Math.PI);
+            for (const tr of trafficMeshes) {
+                const { isV, speed, ox, oz } = tr.userData;
+                if (isV) tr.position.z = oz + cycle * speed * 8;
+                else     tr.position.x = ox + cycle * speed * 8;
+                tr.material.opacity = fade * 0.6;
+            }
+
+            // Windows — 1 draw call, color drives flicker
+            for (let i = 0; i < windowData.length; i++) {
+                const { freq, phase } = windowData[i];
+                const b = 0.2 + 0.8 * Math.abs(Math.sin(t * freq + phase));
+                _col.setRGB(0, b * 0.95, b);
+                windowMesh.setColorAt(i, _col);
+            }
+            windowMesh.instanceColor.needsUpdate = true;
+
+            // Pedestrians
+            for (let i = 0; i < pedData.length; i++) {
+                const p = pedData[i];
+                p.progress += p.speed;
+                if (p.progress > 4) p.progress = 0;
+                const { progress: pr, size: s, bx, bz } = p;
+                if      (pr < 1) _dummy.position.set(bx - s + pr * 2 * s, 0.1, bz - s);
+                else if (pr < 2) _dummy.position.set(bx + s, 0.1, bz - s + (pr-1) * 2 * s);
+                else if (pr < 3) _dummy.position.set(bx + s - (pr-2) * 2 * s, 0.1, bz + s);
+                else             _dummy.position.set(bx - s, 0.1, bz + s - (pr-3) * 2 * s);
+                _dummy.updateMatrix();
+                pedMesh.setMatrixAt(i, _dummy.matrix);
+            }
+            pedMesh.instanceMatrix.needsUpdate = true;
+
+            renderer.render(scene, camera);
+        }
+
+        function validate() {
+            if (document.getElementById('pass').value === 'centuria2026') {
+                sessionStorage.setItem('centuria_auth', '1');
+                isOrbiting = false;
+                gsap.to(camera.position, { y: 1200, z: -200, duration: 4, ease: 'power3.inOut', onComplete: () => { document.getElementById('phase-selection').style.display = 'flex'; gsap.to('#phase-selection', { opacity: 1, duration: 1.5 }); } });
+                gsap.to('#phase-login', { opacity: 0, duration: 0.8, onComplete: () => { document.getElementById('phase-login').style.display = 'none'; } });
+            }
+        }
+        window.onload = init3D;
+    </script>
+
+<div id="phase-selection">
+        <div class="selection-header">
+            <h1>GEMELO TERRITORIAL - COMUNA 5</h1>
+            <p>Representación Virtual del Territorio (RVT) aplicada a la Comuna 5</p>
+        </div>
+
+        <div class="carousel-container">
+            <button class="nav-arrow prev" onclick="changeSlide(-1)"> < </button>
+            <div class="slides-wrapper">
+                
+                <div class="map-card active">
+                    <div class="card-icon"><div>👥</div></div>
+                    <h2>ANÁLISIS DEMOGRÁFICO</h2>
+                    <p class="sub-info">Composición y distribución poblacional a escala micro-territorial.</p>
+                    
+                    <div class="electoral-accordion">
+                        <div class="acc-item">
+                            <button class="acc-trigger" onclick="toggleAcc('demo-densidad')">DENSIDAD POBLACIONAL</button>
+                            <div id="acc-demo-densidad" class="acc-content">
+                                <button class="btn-mini" onclick="window.open('mapa1.html', '_blank')">DENSIDAD POR UNIDAD MÍNIMA TERRITORIAL</button>
+                            </div>
+                        </div>
+
+                        <div class="acc-item">
+                            <button class="acc-trigger" onclick="toggleAcc('demo-composicion')">COMPOSICIÓN SOCIAL</button>
+                            <div id="acc-demo-composicion" class="acc-content">
+                                <button class="btn-mini" onclick="window.open('mapa2.html', '_blank')">DISTRIBUCIÓN POR GÉNERO Y GRUPO ETARIO</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="map-card">
+                    <div class="card-icon"><div>🗳</div></div>
+                    <h2>ANÁLISIS ELECTORAL</h2>
+                    <p class="sub-info">Resultados electorales y flujos de votación estratégicos.</p>
+                    
+                    <div class="electoral-accordion">
+                        <div class="acc-item">
+                            <button class="acc-trigger" onclick="toggleAcc('puente')">EL PUENTE ESTRATÉGICO</button>
+                            <div id="acc-puente" class="acc-content">
+                                <button class="btn-mini" onclick="window.open('mapa3.html', '_blank')">POBLACIÓN VS CIUDADANÍA</button>
+                            </div>
+                        </div>
+
+                        <div class="acc-item">
+                            <button class="acc-trigger" onclick="toggleAcc('2023')">ELECCIONES 2023</button>
+                            <div id="acc-2023" class="acc-content">
+                                <button class="btn-mini" onclick="window.open('mapa4.html', '_blank')">PASO</button>
+                                <button class="btn-mini" onclick="window.open('mapa5.html', '_blank')">GENERALES</button>
+                                <button class="btn-mini" onclick="window.open('mapa6.html', '_blank')">BALOTAJE</button>
+                            </div>
+                        </div>
+
+                        <div class="acc-item">
+                            <button class="acc-trigger" onclick="toggleAcc('2025')">ELECCIONES 2025</button>
+                            <div id="acc-2025" class="acc-content">
+                                <button class="btn-mini" onclick="window.open('mapa7.html', '_blank')">LEGISLATIVAS</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                </div>
+            <button class="nav-arrow next" onclick="changeSlide(1)"> > </button>
+        </div>
+    </div>
+
+<script>
+    function toggleAcc(id) {
+        const content = document.getElementById('acc-' + id);
+        const isOpen = content.classList.contains('open');
+        document.querySelectorAll('.acc-content').forEach(el => el.classList.remove('open'));
+        if (!isOpen) content.classList.add('open');
+    }
+
+    let currentSlide = 0;
+    const cards = document.querySelectorAll('.map-card');
+    const track = document.getElementById('track');
+    const cardWidth = 480; // Ancho exacto de cada tarjeta
+
+    // Inicializar visualmente
+    gsap.set(cards[0], { opacity: 1, scale: 1 });
+
+    function changeSlide(dir) {
+        // Prevenir solapamiento de animaciones
+        if (gsap.isTweening(track) || gsap.isTweening(cards)) return;
+
+        const prevCard = cards[currentSlide];
+        
+        // Calcular nuevo índice (cíclico)
+        currentSlide = (currentSlide + dir + cards.length) % cards.length;
+        const nextCard = cards[currentSlide];
+
+        // Cerramos acordeones para limpiar vista
+        document.querySelectorAll('.acc-content').forEach(el => el.classList.remove('open'));
+
+        // 1. Mover el riel completo
+        const moveX = -(currentSlide * cardWidth);
+        gsap.to(track, {
+            x: moveX,
+            duration: 0.8,
+            ease: "power3.inOut"
+        });
+
+        // 2. Animación de tarjeta saliente
+        prevCard.classList.remove('active');
+        gsap.to(prevCard, {
+            opacity: 0.3,
+            scale: 0.9,
+            duration: 0.8,
+            ease: "power3.inOut"
+        });
+
+        // 3. Animación de tarjeta entrante
+        nextCard.classList.add('active');
+        gsap.to(nextCard, {
+            opacity: 1,
+            scale: 1,
+            duration: 0.8,
+            ease: "power3.inOut"
+        });
+    }
+</script>
+</body>
+</html>

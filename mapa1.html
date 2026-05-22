@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CENTURIA | DENSIDAD POBLACIONAL</title>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@100;400;800&display=swap" rel="stylesheet">
+    <link href="https://unpkg.com/maplibre-gl@4/dist/maplibre-gl.css" rel="stylesheet">
+    <script src="https://unpkg.com/maplibre-gl@4/dist/maplibre-gl.js"></script>
+    <style>
+    :root { --bg: #000103; --cyan: #00f2ff; --cyan-dim: rgba(0,242,255,0.12); }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: var(--bg); font-family: 'JetBrains Mono', monospace; overflow: hidden; }
+    #map { position: fixed; inset: 0; }
+    .panel {
+        position: fixed; top: 20px; right: 20px; width: 280px;
+        background: rgba(0,1,3,0.93); border: 1px solid rgba(0,242,255,0.3);
+        backdrop-filter: blur(20px); z-index: 100; color: var(--cyan);
+        max-height: calc(100vh - 40px); overflow-y: auto;
+        scrollbar-width: thin; scrollbar-color: var(--cyan-dim) transparent;
+    }
+    .panel-header { padding: 18px 20px; border-bottom: 1px solid var(--cyan-dim); }
+    .panel-eyebrow { font-size: 0.5rem; letter-spacing: 3px; opacity: 0.5; margin-bottom: 4px; }
+    .panel-title { font-size: 0.85rem; font-weight: 800; letter-spacing: 3px; color: #fff; line-height: 1.3; }
+    .panel-sub { font-size: 0.55rem; letter-spacing: 1px; opacity: 0.6; margin-top: 6px; font-weight: 100; }
+    .back-btn {
+        display: flex; align-items: center; gap: 8px; padding: 10px 20px;
+        font-size: 0.55rem; letter-spacing: 3px; color: var(--cyan);
+        border-bottom: 1px solid var(--cyan-dim); text-decoration: none; transition: background 0.3s;
+    }
+    .back-btn:hover { background: rgba(0,242,255,0.06); }
+
+    /* Mode tabs */
+    .mode-tabs { display: flex; border-bottom: 1px solid var(--cyan-dim); }
+    .mode-tab {
+        flex: 1; padding: 9px 0; font-size: 0.52rem; letter-spacing: 3px; text-align: center;
+        cursor: pointer; background: none; border: none; color: var(--cyan);
+        font-family: inherit; transition: background 0.2s; border-bottom: 2px solid transparent;
+    }
+    .mode-tab.active { color: #fff; font-weight: 800; border-bottom-color: var(--cyan); background: rgba(0,242,255,0.05); }
+
+    /* Layer rows */
+    .section { padding: 12px 20px; border-bottom: 1px solid var(--cyan-dim); }
+    .section-label { font-size: 0.46rem; letter-spacing: 3px; opacity: 0.4; margin-bottom: 8px; text-transform: uppercase; }
+    .layer-row {
+        display: flex; align-items: center; gap: 9px; padding: 5px 0;
+        cursor: pointer; transition: opacity 0.2s; user-select: none;
+    }
+    .layer-row:hover { opacity: 0.8; }
+    .layer-row input[type=checkbox] {
+        appearance: none; width: 12px; height: 12px; flex-shrink: 0;
+        border: 1px solid var(--cyan); cursor: pointer; position: relative; transition: 0.2s;
+    }
+    .layer-row input[type=checkbox]:checked::after { content:''; position:absolute; inset:2px; background:var(--cyan); }
+    .swatch { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
+    .lname { font-size: 0.56rem; letter-spacing: 1px; color: rgba(255,255,255,0.8); }
+
+    /* Edit controls — shown per layer in edit mode */
+    .layer-edit { display: none; padding: 8px 0 10px 22px; }
+    .panel.edit-mode .layer-edit { display: block; }
+
+    .ctrl-row { display: flex; align-items: center; gap: 7px; margin-top: 6px; }
+    .ctrl-lbl { font-size: 0.44rem; letter-spacing: 2px; opacity: 0.45; min-width: 52px; }
+    .op-slider {
+        flex: 1; -webkit-appearance: none; height: 2px; outline: none;
+        background: linear-gradient(to right, var(--cyan) 0%, var(--cyan) var(--pct, 38%), rgba(0,242,255,0.2) var(--pct, 38%));
+        cursor: pointer;
+    }
+    .op-slider::-webkit-slider-thumb { -webkit-appearance: none; width: 10px; height: 10px; border-radius: 50%; background: var(--cyan); cursor: pointer; }
+    .op-val { font-size: 0.52rem; color: #fff; min-width: 28px; text-align: right; }
+    .color-wrap { display: flex; flex-direction: column; gap: 3px; flex: 1; min-width: 0; }
+    .color-grid { display: flex; gap: 4px; flex-wrap: nowrap; }
+    .color-grid input[type=color] {
+        width: 26px; height: 26px; flex-shrink: 0;
+        border: 2px solid rgba(0,242,255,0.3); border-radius: 4px;
+        cursor: pointer; padding: 0;
+    }
+    .color-grid input[type=color]::-webkit-color-swatch-wrapper { padding: 2px; }
+    .color-grid input[type=color]::-webkit-color-swatch { border: none; border-radius: 2px; }
+    .color-grid input[type=color]::-moz-color-swatch { border: none; border-radius: 2px; }
+    .color-grid input[type=color]:hover { border-color: var(--cyan); }
+    .stop-labels { display: flex; gap: 4px; }
+    .stop-lbl { font-size: 9px; opacity: 0.4; width: 26px; flex-shrink: 0; text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    /* Reset + Export */
+    .edit-actions { display: flex; gap: 6px; margin-top: 8px; }
+    .edit-btn {
+        flex: 1; font-size: 0.42rem; letter-spacing: 2px; padding: 5px 0;
+        background: none; border: 1px solid rgba(0,242,255,0.2); color: rgba(0,242,255,0.7);
+        cursor: pointer; font-family: inherit; transition: 0.2s;
+    }
+    .edit-btn:hover { border-color: var(--cyan); color: #fff; }
+    .edit-btn.danger:hover { border-color: #ff4444; color: #ff4444; }
+
+    /* Export panel (bottom) */
+    .export-bar {
+        display: none; padding: 10px 20px; border-top: 1px solid var(--cyan-dim);
+        background: rgba(0,242,255,0.04);
+    }
+    .panel.edit-mode .export-bar { display: block; }
+    .export-bar-btn {
+        width: 100%; font-size: 0.48rem; letter-spacing: 3px; padding: 8px;
+        background: none; border: 1px solid rgba(0,242,255,0.3); color: var(--cyan);
+        cursor: pointer; font-family: inherit; transition: 0.2s;
+    }
+    .export-bar-btn:hover { background: rgba(0,242,255,0.08); }
+
+    /* Tooltip */
+    .tooltip {
+        position: fixed; pointer-events: none; z-index: 200;
+        background: rgba(0,1,3,0.96); border: 1px solid rgba(0,242,255,0.4);
+        backdrop-filter: blur(10px); padding: 12px 16px; min-width: 190px; display: none;
+        color: var(--cyan);
+    }
+    .tt-title { font-size: 11px; letter-spacing: 2px; color: var(--cyan); margin-bottom: 10px; font-weight: 800; }
+    .tt-row { display: flex; justify-content: space-between; gap: 20px; padding: 4px 0; border-bottom: 1px solid rgba(255,255,255,0.06); }
+    .tt-key { font-size: 11px; color: rgba(0,242,255,0.75); white-space: nowrap; }
+    .tt-val { font-size: 12px; color: #fff; font-weight: 800; }
+    .maplibregl-ctrl-attrib { font-size: 9px !important; opacity: 0.4; }
+
+    /* Basemap switcher */
+    .basemap-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; margin-top: 4px; }
+    .basemap-btn {
+        background: rgba(0,242,255,0.04); border: 1px solid rgba(0,242,255,0.18);
+        color: rgba(255,255,255,0.6); font-size: 9px; letter-spacing: 2px;
+        padding: 9px 4px; cursor: pointer; font-family: inherit; transition: 0.2s; text-align: center;
+    }
+    .basemap-btn:hover { background: rgba(0,242,255,0.1); color: rgba(255,255,255,0.9); }
+    .basemap-btn.active { background: rgba(0,242,255,0.15); border-color: var(--cyan); color: #fff; font-weight: 800; }
+
+
+    /* Panel zoom */
+    .panel { transform-origin: top right; transition: transform 0.15s ease; }
+    .topbar { display: flex; align-items: center; border-bottom: 1px solid var(--cyan-dim); }
+    .back-btn { flex: 1; border-bottom: none; }
+    .zoom-ctrl {
+        display: flex; align-items: center; gap: 2px;
+        padding: 0 10px; border-left: 1px solid var(--cyan-dim); flex-shrink: 0;
+    }
+    .zoom-btn {
+        background: none; border: none; color: var(--cyan); cursor: pointer;
+        font-size: 1rem; padding: 6px 5px; font-family: inherit; line-height: 1;
+        transition: color 0.2s; user-select: none;
+    }
+    .zoom-btn:hover { color: #fff; }
+    .zoom-pct { font-size: 0.42rem; letter-spacing: 1px; opacity: 0.5; width: 26px; text-align: center; }
+</style>
+</head>
+<body>
+    <div id="map"></div>
+
+    <div class="panel">
+        <div class="panel-header">
+            <div class="panel-eyebrow">CENTURIA | GEMELO TERRITORIAL</div>
+            <div class="panel-title">DENSIDAD POBLACIONAL</div>
+            <div class="panel-sub">Concentración por unidad mínima territorial</div>
+        </div>
+        <div class="topbar">
+            <a href="index.html" class="back-btn">← VOLVER AL PORTAL</a>
+            <div class="zoom-ctrl">
+                <button class="zoom-btn" id="zoom-out" title="Reducir">−</button>
+                <span class="zoom-pct" id="zoom-pct">100%</span>
+                <button class="zoom-btn" id="zoom-in" title="Ampliar">+</button>
+            </div>
+        </div>
+        <div class="mode-tabs">
+            <button class="mode-tab active" id="tab-capas">CAPAS</button>
+            <button class="mode-tab" id="tab-edit">✦ EDITAR</button>
+        </div>
+
+        <div class="section">
+            <div class="section-label">VISUALIZACIÓN</div>
+            <label class="layer-row" data-layer="pob3d">
+                <input type="checkbox" checked>
+                <span class="swatch" style="background:linear-gradient(to right,#24536F,#2F80B3,#009FFF,#5BCDD9,#00F2FF)"></span>
+                <span class="lname">EXTRUSIÓN 3D POBLACIÓN</span>
+            </label>
+            <div class="layer-edit" data-layer="pob3d">
+                <div class="ctrl-row">
+                    <span class="ctrl-lbl">OPACIDAD</span>
+                    <input type="range" class="op-slider" min="0" max="1" step="0.01" value="0.38" style="--pct:38%">
+                    <span class="op-val">0.38</span>
+                </div>
+                <div class="ctrl-row">
+                    <span class="ctrl-lbl">COLORES</span>
+                    <div class="color-wrap"><div class="color-grid"><input type="color" data-idx="0" value="#24536F"><input type="color" data-idx="1" value="#2F80B3"><input type="color" data-idx="2" value="#009FFF"><input type="color" data-idx="3" value="#5BCDD9"><input type="color" data-idx="4" value="#00F2FF"></div><div class="stop-labels"><span class="stop-lbl">288</span><span class="stop-lbl">688</span><span class="stop-lbl">826</span><span class="stop-lbl">975</span><span class="stop-lbl">1837</span></div></div>
+                </div>
+                <div class="edit-actions">
+                    <button class="edit-btn danger reset-btn">↺ RESET</button>
+                </div>
+            </div>
+            <label class="layer-row" data-layer="pob-flat">
+                <input type="checkbox" checked>
+                <span class="swatch" style="background:linear-gradient(to right,#24536F,#2F80B3,#009FFF,#5BCDD9,#00F2FF)"></span>
+                <span class="lname">CONCENTRACIÓN PLANA</span>
+            </label>
+            <div class="layer-edit" data-layer="pob-flat">
+                <div class="ctrl-row">
+                    <span class="ctrl-lbl">OPACIDAD</span>
+                    <input type="range" class="op-slider" min="0" max="1" step="0.01" value="0.29" style="--pct:28%">
+                    <span class="op-val">0.29</span>
+                </div>
+                <div class="ctrl-row">
+                    <span class="ctrl-lbl">COLORES</span>
+                    <div class="color-wrap"><div class="color-grid"><input type="color" data-idx="0" value="#24536F"><input type="color" data-idx="1" value="#2F80B3"><input type="color" data-idx="2" value="#009FFF"><input type="color" data-idx="3" value="#5BCDD9"><input type="color" data-idx="4" value="#00F2FF"></div><div class="stop-labels"><span class="stop-lbl">288</span><span class="stop-lbl">688</span><span class="stop-lbl">826</span><span class="stop-lbl">975</span><span class="stop-lbl">1837</span></div></div>
+                </div>
+                <div class="edit-actions">
+                    <button class="edit-btn danger reset-btn">↺ RESET</button>
+                </div>
+            </div>
+        </div>
+        <div class="section">
+            <div class="section-label">MAPA BASE</div>
+            <div class="basemap-grid">
+                <button class="basemap-btn active" data-style="dark">OSCURO</button>
+                <button class="basemap-btn" data-style="voyager">GPS</button>
+                <button class="basemap-btn" data-style="light">BLANCO</button>
+                <button class="basemap-btn" data-style="satellite">SATÉLITE</button>
+            </div>
+        </div>
+        <div class="export-bar">
+            <button class="export-bar-btn" id="export-btn">↗ EXPORTAR CONFIGURACIÓN</button>
+        </div>
+    </div>
+
+    <div class="tooltip" id="tt"></div>
+
+    <script>
+        const __lc = {
+  'pob3d':{opK:'fill-extrusion-opacity',colK:'fill-extrusion-color',mode:'interp',field:'Concentración_Población',stops:[288, 688, 826, 975, 1837],colors:['#24536F', '#2F80B3', '#009FFF', '#5BCDD9', '#00F2FF'],op:0.38},
+  'pob-flat':{opK:'fill-opacity',colK:'fill-color',mode:'interp',field:'Concentración_Población',stops:[288, 688, 826, 975, 1837],colors:['#24536F', '#2F80B3', '#009FFF', '#5BCDD9', '#00F2FF'],op:0.29}
+        };
+
+        const map = new maplibregl.Map({
+            container: 'map',
+            style: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
+            center: [-58.41218, -34.61057],
+            zoom: 12.885, bearing: 81.625, pitch: 41.11,
+            attributionControl: { compact: true }
+        });
+
+        const DATASET_URL = './data/comuna5_demografia.geojson';
+
+        const BASEMAPS = {
+            dark:      'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
+            voyager:   'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json',
+            light:     'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json',
+            satellite: { version:8, sources:{ sat:{ type:'raster', tiles:['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'], tileSize:256, attribution:'© Esri' } }, layers:[{id:'sat',type:'raster',source:'sat'}] }
+        };
+
+        const __ld = {
+  'pob3d':{type:'fill-extrusion',extra:{'fill-extrusion-height':hi('Concentración_Población',288,1837),'fill-extrusion-base':0}},
+  'pob-flat':{type:'fill',extra:{}}
+        };
+
+        function setupMapLayers() {
+            try {
+                if (!map.getSource('src')) {
+                    map.addSource('src', { type:'geojson', data:DATASET_URL });
+                }
+                Object.keys(__lc).forEach(lid => {
+                    if (map.getLayer(lid)) return;
+                    const def=__ld[lid], cfg=__lc[lid];
+                    const paint={[cfg.opK]:cfg.op};
+                    paint[cfg.colK]=cfg.mode==='interp'?ci(cfg.field,cfg.stops,cfg.colors):cm(cfg.field,cfg.pairs,cfg.fallback);
+                    Object.assign(paint, def.extra);
+                    map.addLayer({id:lid, type:def.type, source:'src', paint, layout:{visibility:'none'}});
+                });
+                // Highlight layers (always on top)
+                if (!map.getLayer('__hl-fill')) {
+                    map.addLayer({id:'__hl-fill', type:'fill', source:'src',
+                        filter:['==',['get','ID_Territorio'],-1],
+                        paint:{'fill-color':'#ffffff','fill-opacity':0.18}});
+                }
+                if (!map.getLayer('__hl-line')) {
+                    map.addLayer({id:'__hl-line', type:'line', source:'src',
+                        filter:['==',['get','ID_Territorio'],-1],
+                        paint:{'line-color':'#00f2ff','line-width':3,'line-opacity':1}});
+                }
+                // Restore visibility from checkboxes
+                document.querySelectorAll('.layer-row input').forEach(cb => {
+                    const lid=cb.closest('.layer-row').dataset.layer;
+                    if(map.getLayer(lid)) map.setLayoutProperty(lid,'visibility',cb.checked?'visible':'none');
+                });
+                // Restore active selection
+                if (_selId!==null) setHighlight(_selId);
+            } catch(err) {
+                console.warn('setupMapLayers retry:', err.message);
+                setTimeout(setupMapLayers, 200);
+            }
+        }
+
+        map.on('load', () => {
+            setupMapLayers();
+            tooltip(p => `<div class="tt-title">TERRITORIO ${p.ID_Territorio}</div>` +
+                row('Población', p.Concentración_Población) +
+                row('Electores 23', p.Concentración_Electores_23) +
+                row('Edad promedio', Number(p.Edad_Promedio).toFixed(1)+' años'));
+            initClickHandler();
+            initEditHandlers();
+        });
+
+        // Basemap switcher — remove our layers FIRST, then switch, then rebuild
+        function switchBasemap(styleId) {
+            // 1. Remove custom layers in safe reverse order
+            ['__hl-line','__hl-fill',...Object.keys(__lc).reverse()].forEach(lid => {
+                try { if (map.getLayer(lid)) map.removeLayer(lid); } catch(e) {}
+            });
+            // 2. Remove custom source
+            try { if (map.getSource('src')) map.removeSource('src'); } catch(e) {}
+            // 3. Switch style
+            map.setStyle(BASEMAPS[styleId]);
+            // 4. Wait for style to be truly ready using styledata + isStyleLoaded
+            //    (style.load can fire too early in MapLibre 4.x)
+            const onStyleData = () => {
+                if (!map.isStyleLoaded()) return;
+                map.off('styledata', onStyleData);
+                setupMapLayers();
+            };
+            map.on('styledata', onStyleData);
+        }
+
+        document.querySelectorAll('.basemap-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                if (btn.classList.contains('active')) return;
+                document.querySelectorAll('.basemap-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                switchBasemap(btn.dataset.style);
+            });
+        });
+
+
+        function ci(field, stops, colors) {
+            const e = ['interpolate', ['linear'], ['get', field]];
+            stops.forEach((v,i) => e.push(v, colors[i]));
+            return e;
+        }
+        function cm(field, pairs, fallback) {
+            const e = ['match', ['get', field]];
+            pairs.forEach(([k,v]) => { e.push(k); e.push(v); });
+            e.push(fallback);
+            return e;
+        }
+        function hi(field, min, max) {
+            return ['interpolate', ['linear'], ['get', field], min, 30, max, 550];
+        }
+        // Visible data layer IDs at any moment
+        function visLayers() {
+            return Object.keys(__lc).filter(lid => {
+                try { return map.getLayoutProperty(lid,'visibility')==='visible'; } catch { return false; }
+            });
+        }
+
+        // Tooltip — single map-level handler, survives setStyle()
+        function tooltip(labelFn) {
+            const tt = document.getElementById('tt');
+            map.on('mousemove', e => {
+                const hits = map.queryRenderedFeatures(e.point, { layers: visLayers() });
+                if (!hits.length) { tt.style.display='none'; map.getCanvas().style.cursor=''; return; }
+                const p = hits[0].properties;
+                tt.style.display='block';
+                tt.style.left=(e.originalEvent.clientX+14)+'px';
+                tt.style.top=(e.originalEvent.clientY-10)+'px';
+                tt.innerHTML=labelFn(p);
+                map.getCanvas().style.cursor='pointer';
+            });
+            map.on('mouseout', ()=>{ tt.style.display='none'; map.getCanvas().style.cursor=''; });
+        }
+
+        // Click: highlight + fly-to — single map-level handler
+        let _selId = null;
+        function getbbox(f) {
+            let n=-90,s=90,e=-180,w=180;
+            const proc=([lng,lat])=>{if(lng<w)w=lng;if(lng>e)e=lng;if(lat<s)s=lat;if(lat>n)n=lat;};
+            const g=f.geometry;
+            if(g.type==='Polygon') g.coordinates.forEach(r=>r.forEach(proc));
+            if(g.type==='MultiPolygon') g.coordinates.forEach(poly=>poly.forEach(r=>r.forEach(proc)));
+            return [[w,s],[e,n]];
+        }
+        function setHighlight(id) {
+            _selId=id;
+            const filt=id==null?['==',['get','ID_Territorio'],-1]:['==',['get','ID_Territorio'],id];
+            if(map.getLayer('__hl-fill')) map.setFilter('__hl-fill',filt);
+            if(map.getLayer('__hl-line')) map.setFilter('__hl-line',filt);
+        }
+        function initClickHandler() {
+            map.on('click', e => {
+                const hits = map.queryRenderedFeatures(e.point, { layers: visLayers() });
+                if (!hits.length) { setHighlight(null); return; }
+                const f = hits[0];
+                const id = f.properties.ID_Territorio;
+                if (id === _selId) { setHighlight(null); return; }
+                setHighlight(id);
+                map.fitBounds(getbbox(f), { padding:100, duration:900, maxZoom:17,
+                    pitch:map.getPitch(), bearing:map.getBearing() });
+            });
+        }
+
+        function row(k,v) { return `<div class="tt-row"><span class="tt-key">${k}</span><span class="tt-val">${v}</span></div>`; }
+
+        // ── Panel zoom (persisted in localStorage) ────────────────────
+        (function() {
+            const panel = document.querySelector('.panel');
+            const STEP = 0.1, MIN = 0.6, MAX = 1.6;
+            let scale = parseFloat(localStorage.getItem('centuria-panel-scale') || '1');
+            const pctEl = document.getElementById('zoom-pct');
+            function apply() {
+                panel.style.transform = scale === 1 ? '' : `scale(${scale})`;
+                pctEl.textContent = Math.round(scale * 100) + '%';
+                localStorage.setItem('centuria-panel-scale', scale);
+            }
+            apply();
+            document.getElementById('zoom-in').onclick  = () => { scale = Math.min(MAX, +(scale + STEP).toFixed(1)); apply(); };
+            document.getElementById('zoom-out').onclick = () => { scale = Math.max(MIN, +(scale - STEP).toFixed(1)); apply(); };
+        })();
+
+
+        // ── Edit mode toggle ──────────────────────────────────────────
+        const panel = document.querySelector('.panel');
+        document.getElementById('tab-capas').onclick = () => {
+            panel.classList.remove('edit-mode');
+            document.getElementById('tab-capas').classList.add('active');
+            document.getElementById('tab-edit').classList.remove('active');
+        };
+        document.getElementById('tab-edit').onclick = () => {
+            panel.classList.add('edit-mode');
+            document.getElementById('tab-edit').classList.add('active');
+            document.getElementById('tab-capas').classList.remove('active');
+        };
+
+        // ── Layer visibility (works in both modes) ────────────────────
+        document.querySelectorAll('.layer-row').forEach(r => {
+            r.addEventListener('change', () => {
+                const lid = r.dataset.layer;
+                map.setLayoutProperty(lid,'visibility', r.querySelector('input').checked ? 'visible' : 'none');
+            });
+        });
+
+        // ── Edit handlers (need map loaded) ───────────────────────────
+        function initEditHandlers() {
+            const __orig = JSON.parse(JSON.stringify(__lc));
+
+            // Opacity sliders
+            document.querySelectorAll('.op-slider').forEach(sl => {
+                const lid = sl.closest('[data-layer]').dataset.layer;
+                const valEl = sl.nextElementSibling;
+                sl.addEventListener('input', () => {
+                    const v = parseFloat(sl.value);
+                    __lc[lid].op = v;
+                    map.setPaintProperty(lid, __lc[lid].opK, v);
+                    valEl.textContent = v.toFixed(2);
+                    sl.style.setProperty('--pct', (v * 100) + '%');
+                });
+            });
+
+            // Color pickers
+            document.querySelectorAll('.color-grid [type=color]').forEach(cp => {
+                const lid = cp.closest('[data-layer]').dataset.layer;
+                const cfg = __lc[lid];
+                cp.addEventListener('input', () => {
+                    if (cfg.mode === 'interp') {
+                        cfg.colors[parseInt(cp.dataset.idx)] = cp.value;
+                        map.setPaintProperty(lid, cfg.colK, ci(cfg.field, cfg.stops, cfg.colors));
+                        const sw = document.querySelector(`.layer-row[data-layer="${lid}"] .swatch`);
+                        if (sw) sw.style.background = `linear-gradient(to right,${cfg.colors.join(',')})`;
+                    } else {
+                        if (cp.dataset.cat === '__fb') {
+                            cfg.fallback = cp.value;
+                        } else {
+                            const pair = cfg.pairs.find(([k]) => k === cp.dataset.cat);
+                            if (pair) pair[1] = cp.value;
+                        }
+                        map.setPaintProperty(lid, cfg.colK, cm(cfg.field, cfg.pairs, cfg.fallback));
+                        const sw = document.querySelector(`.layer-row[data-layer="${lid}"] .swatch`);
+                        if (sw && cfg.pairs[0]) sw.style.background = cfg.pairs[0][1];
+                    }
+                });
+            });
+
+            // Reset buttons
+            document.querySelectorAll('.reset-btn').forEach(btn => {
+                const lid = btn.closest('[data-layer]').dataset.layer;
+                btn.addEventListener('click', () => {
+                    const orig = __orig[lid];
+                    const cfg = __lc[lid];
+                    // Opacity
+                    cfg.op = orig.op;
+                    map.setPaintProperty(lid, cfg.opK, orig.op);
+                    const sl = document.querySelector(`.layer-edit[data-layer="${lid}"] .op-slider`);
+                    if (sl) { sl.value = orig.op; sl.nextElementSibling.textContent = orig.op.toFixed(2); sl.style.setProperty('--pct', (orig.op*100)+'%'); }
+                    // Colors
+                    if (cfg.mode === 'interp') {
+                        cfg.colors = [...orig.colors];
+                        map.setPaintProperty(lid, cfg.colK, ci(cfg.field, cfg.stops, cfg.colors));
+                        document.querySelectorAll(`.layer-edit[data-layer="${lid}"] [type=color]`).forEach((cp,i) => { cp.value = orig.colors[i]; });
+                        const sw = document.querySelector(`.layer-row[data-layer="${lid}"] .swatch`);
+                        if (sw) sw.style.background = `linear-gradient(to right,${orig.colors.join(',')})`;
+                    } else {
+                        cfg.pairs = orig.pairs.map(p => [...p]);
+                        cfg.fallback = orig.fallback;
+                        map.setPaintProperty(lid, cfg.colK, cm(cfg.field, cfg.pairs, cfg.fallback));
+                        document.querySelectorAll(`.layer-edit[data-layer="${lid}"] [type=color]`).forEach(cp => {
+                            if (cp.dataset.cat === '__fb') cp.value = orig.fallback;
+                            else { const p = orig.pairs.find(([k]) => k === cp.dataset.cat); if(p) cp.value = p[1]; }
+                        });
+                    }
+                });
+            });
+
+            // Export config
+            document.getElementById('export-btn').addEventListener('click', () => {
+                const btn = document.getElementById('export-btn');
+                const out = JSON.stringify(__lc, null, 2);
+                navigator.clipboard.writeText(out).then(() => {
+                    btn.textContent = '✓ COPIADO AL PORTAPAPELES';
+                    setTimeout(() => btn.textContent = '↗ EXPORTAR CONFIGURACIÓN', 2000);
+                }).catch(() => {
+                    prompt('Copia la configuración:', out);
+                });
+            });
+        }
+
+    </script>
+</body>
+</html>
