@@ -1,0 +1,661 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CENTURIA | Editor</title>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@100;400;800&display=swap" rel="stylesheet">
+  <link href="https://unpkg.com/maplibre-gl@4/dist/maplibre-gl.css" rel="stylesheet">
+  <script src="https://unpkg.com/maplibre-gl@4/dist/maplibre-gl.js"></script>
+  <script src="https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <style>
+    :root { --bg:#000103; --cyan:#00f2ff; --dim:rgba(0,242,255,0.12); --panel:rgba(0,1,3,0.95); }
+    *{margin:0;padding:0;box-sizing:border-box;}
+    body{background:var(--bg);color:var(--cyan);font-family:'JetBrains Mono',monospace;height:100vh;overflow:hidden;}
+
+    /* ── Login ── */
+    #login-screen{position:fixed;inset:0;z-index:500;display:flex;align-items:center;justify-content:center;background:var(--bg);}
+    .login-box{width:340px;padding:40px;border:1px solid rgba(0,242,255,0.3);background:var(--panel);backdrop-filter:blur(20px);}
+    .login-title{font-size:1.1rem;font-weight:800;letter-spacing:6px;color:#fff;margin-bottom:4px;}
+    .login-sub{font-size:0.5rem;letter-spacing:3px;opacity:0.45;margin-bottom:28px;}
+    #login-err{margin-top:10px;font-size:0.5rem;color:#ff6060;letter-spacing:2px;display:none;}
+
+    /* ── App shell ── */
+    #app{display:none;height:100vh;}
+    .app-layout{display:flex;height:100vh;}
+    #sidebar{width:320px;flex-shrink:0;background:var(--panel);border-right:1px solid var(--dim);display:flex;flex-direction:column;overflow:hidden;}
+    #map-wrap{flex:1;position:relative;}
+    #preview-map{width:100%;height:100%;}
+
+    /* ── Sidebar header ── */
+    .sb-head{padding:14px 18px;border-bottom:1px solid var(--dim);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
+    .sb-title{font-size:0.65rem;font-weight:800;letter-spacing:4px;color:#fff;}
+
+    /* ── Tabs ── */
+    .tabs{display:flex;border-bottom:1px solid var(--dim);flex-shrink:0;}
+    .tab{flex:1;padding:8px 0;font-size:0.48rem;letter-spacing:2px;text-align:center;cursor:pointer;background:none;border:none;color:var(--cyan);font-family:inherit;border-bottom:2px solid transparent;transition:.2s;}
+    .tab.on{color:#fff;font-weight:800;border-bottom-color:var(--cyan);background:rgba(0,242,255,0.05);}
+
+    /* ── Panes ── */
+    .pane{flex:1;overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--dim) transparent;}
+
+    /* ── Form elements ── */
+    .sec{padding:12px 18px;border-bottom:1px solid var(--dim);}
+    .lbl{font-size:0.42rem;letter-spacing:3px;opacity:0.45;margin-bottom:7px;display:block;text-transform:uppercase;}
+    .inp{width:100%;background:rgba(0,242,255,0.04);border:1px solid rgba(0,242,255,0.2);color:#fff;padding:8px 10px;font-family:inherit;font-size:0.62rem;letter-spacing:1px;outline:none;transition:border-color .2s;}
+    .inp:focus{border-color:var(--cyan);}
+    .sel{width:100%;background:#000103;border:1px solid rgba(0,242,255,0.2);color:#fff;padding:8px 10px;font-family:inherit;font-size:0.62rem;letter-spacing:1px;outline:none;cursor:pointer;}
+    .sel option{background:#000103;}
+
+    /* ── Buttons ── */
+    .btn{padding:9px 14px;font-size:0.5rem;letter-spacing:3px;background:none;border:1px solid var(--cyan);color:var(--cyan);cursor:pointer;font-family:inherit;transition:.2s;text-transform:uppercase;}
+    .btn:hover{background:var(--cyan);color:#000;}
+    .btn.full{width:100%;}
+    .btn.danger{border-color:rgba(255,80,80,.4);color:rgba(255,100,100,.8);}
+    .btn.danger:hover{background:rgba(255,60,60,.15);color:#ff7070;border-color:#ff7070;}
+    .btn.sm{padding:5px 9px;font-size:0.42rem;}
+    .row-btns{display:flex;gap:6px;}
+
+    /* ── Upload zone ── */
+    .drop{border:1px dashed rgba(0,242,255,.3);padding:18px;text-align:center;cursor:pointer;transition:.2s;position:relative;}
+    .drop:hover,.drop.over{border-color:var(--cyan);background:rgba(0,242,255,.04);}
+    .drop input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;}
+    .drop-icon{font-size:1.4rem;margin-bottom:6px;}
+    .drop-text{font-size:0.5rem;letter-spacing:2px;opacity:.6;}
+    .drop-name{font-size:0.58rem;color:var(--cyan);font-weight:800;margin-top:4px;}
+
+    /* ── Layer cards ── */
+    .lcard{border:1px solid var(--dim);margin-bottom:7px;background:rgba(0,242,255,.02);}
+    .lcard-hd{display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid var(--dim);cursor:pointer;}
+    .lcard-body{padding:10px;display:none;}
+    .lcard-body.open{display:block;}
+    .lnum{font-size:0.46rem;opacity:.4;}
+    .lname-display{font-size:0.58rem;color:#fff;flex:1;}
+
+    /* ── Palette grid ── */
+    .pal-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;}
+    .pal-sw{height:26px;border-radius:3px;cursor:pointer;border:2px solid transparent;transition:.15s;}
+    .pal-sw.on{border-color:#fff;}
+
+    /* ── Opacity slider ── */
+    .op-sl{width:100%;-webkit-appearance:none;height:2px;outline:none;cursor:pointer;
+      background:linear-gradient(to right,var(--cyan) 0%,var(--cyan) var(--p,60%),rgba(0,242,255,.2) var(--p,60%));}
+    .op-sl::-webkit-slider-thumb{-webkit-appearance:none;width:10px;height:10px;border-radius:50%;background:var(--cyan);}
+    .op-row{display:flex;align-items:center;gap:8px;}
+    .op-val{font-size:0.52rem;color:#fff;min-width:28px;text-align:right;}
+
+    /* ── Map list ── */
+    .mitem{display:flex;align-items:center;padding:10px 18px;border-bottom:1px solid var(--dim);cursor:pointer;transition:.15s;gap:10px;}
+    .mitem:hover{background:rgba(0,242,255,.04);}
+    .mitem.cur{background:rgba(0,242,255,.08);}
+    .mitem-dot{width:6px;height:6px;border-radius:50%;background:var(--cyan);flex-shrink:0;}
+    .mitem-title{font-size:0.6rem;color:#fff;flex:1;}
+    .mitem-slug{font-size:0.44rem;opacity:.4;}
+    .empty{padding:28px 18px;text-align:center;font-size:0.5rem;opacity:.4;letter-spacing:2px;}
+
+    /* ── Status bar ── */
+    #statusbar{padding:7px 18px;border-top:1px solid var(--dim);font-size:0.46rem;letter-spacing:2px;opacity:.6;display:flex;align-items:center;gap:7px;flex-shrink:0;}
+    .sdot{width:5px;height:5px;border-radius:50%;background:var(--cyan);}
+
+    /* ── URL display ── */
+    .url-box{background:rgba(0,242,255,.05);border:1px solid var(--dim);padding:8px;font-size:0.5rem;color:var(--cyan);word-break:break-all;cursor:pointer;transition:.2s;margin-top:7px;display:none;}
+    .url-box:hover{border-color:var(--cyan);}
+
+    /* ── Viewport info ── */
+    #vp-info{font-size:0.44rem;opacity:.4;letter-spacing:1px;margin-top:4px;}
+
+    /* ── MapLibre nav controls ── */
+    .maplibregl-ctrl-group{background:rgba(0,1,3,.9)!important;border:1px solid var(--dim)!important;}
+    .maplibregl-ctrl-group button{background:none!important;}
+    .maplibregl-ctrl-icon{filter:invert(1) hue-rotate(165deg);}
+  </style>
+</head>
+<body>
+
+<!-- ── LOGIN ─────────────────────────────────────────────────────────────── -->
+<div id="login-screen">
+  <div class="login-box">
+    <div class="login-title">CENTURIA</div>
+    <div class="login-sub">EDITOR — ACCESO INTERNO</div>
+    <label class="lbl">EMAIL</label>
+    <input class="inp" id="li-email" type="email" placeholder="usuario@dominio.com" style="margin-bottom:10px">
+    <label class="lbl">CONTRASEÑA</label>
+    <input class="inp" id="li-pass" type="password" placeholder="••••••••" style="margin-bottom:18px"
+      onkeydown="if(event.key==='Enter')doLogin()">
+    <button class="btn full" onclick="doLogin()">INICIAR SESIÓN</button>
+    <div id="login-err"></div>
+  </div>
+</div>
+
+<!-- ── APP ───────────────────────────────────────────────────────────────── -->
+<div id="app">
+  <div class="app-layout">
+
+    <!-- SIDEBAR -->
+    <div id="sidebar">
+      <div class="sb-head">
+        <span class="sb-title">CENTURIA EDITOR</span>
+        <button class="btn sm" onclick="doLogout()">SALIR →</button>
+      </div>
+      <div class="tabs">
+        <button class="tab on" id="t-edit" onclick="gotoTab('edit')">EDITAR</button>
+        <button class="tab" id="t-list" onclick="gotoTab('list')">MIS MAPAS</button>
+      </div>
+
+      <!-- EDITAR pane -->
+      <div class="pane" id="p-edit">
+        <div class="sec">
+          <label class="lbl">TÍTULO</label>
+          <input class="inp" id="f-title" placeholder="Ej: Densidad Poblacional" oninput="autoSlug()">
+        </div>
+        <div class="sec">
+          <label class="lbl">SLUG (URL pública)</label>
+          <input class="inp" id="f-slug" placeholder="densidad-poblacional">
+          <div class="url-box" id="url-box" onclick="copyUrl()"></div>
+        </div>
+        <div class="sec">
+          <label class="lbl">GEOJSON — archivo</label>
+          <div class="drop" id="drop-zone">
+            <input type="file" accept=".geojson,.json" onchange="handleFile(this.files[0])">
+            <div class="drop-icon">⬡</div>
+            <div class="drop-text">DROP GEOJSON / CLICK</div>
+            <div class="drop-name" id="drop-name"></div>
+          </div>
+          <label class="lbl" style="margin-top:8px">O URL EXTERNA</label>
+          <div style="display:flex;gap:6px">
+            <input class="inp" id="f-ext-url" placeholder="https://..." style="flex:1">
+            <button class="btn sm" onclick="loadExtUrl()">IR</button>
+          </div>
+        </div>
+
+        <!-- Layers (hidden until GeoJSON loaded) -->
+        <div class="sec" id="sec-layers" style="display:none">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+            <label class="lbl" style="margin:0">CAPAS</label>
+            <button class="btn sm" onclick="addLayer()">+ CAPA</button>
+          </div>
+          <div id="layers-list"></div>
+        </div>
+
+        <!-- Viewport (hidden until GeoJSON loaded) -->
+        <div class="sec" id="sec-vp" style="display:none">
+          <label class="lbl">VIEWPORT</label>
+          <div style="font-size:0.5rem;opacity:.6;letter-spacing:1px;margin-bottom:4px">Navegá el mapa y la vista se guardará al guardar.</div>
+          <div id="vp-info"></div>
+        </div>
+
+        <!-- Actions -->
+        <div class="sec">
+          <div class="row-btns" style="margin-bottom:6px">
+            <button class="btn full" onclick="saveMap()" style="flex:2">GUARDAR</button>
+            <button class="btn" id="btn-ver" onclick="openViewer()" style="flex:1;display:none">VER →</button>
+          </div>
+          <button class="btn danger full" id="btn-del" onclick="deleteMap()" style="display:none">ELIMINAR MAPA</button>
+        </div>
+      </div>
+
+      <!-- MIS MAPAS pane -->
+      <div class="pane" id="p-list" style="display:none">
+        <div style="padding:10px 18px;border-bottom:1px solid var(--dim)">
+          <button class="btn full sm" onclick="newMap()">+ NUEVO MAPA</button>
+        </div>
+        <div id="maps-list"><div class="empty">CARGANDO...</div></div>
+      </div>
+
+      <div id="statusbar"><div class="sdot"></div><span id="st">LISTO</span></div>
+    </div>
+
+    <!-- MAP PREVIEW -->
+    <div id="map-wrap">
+      <div id="preview-map"></div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// ══ CONFIG — reemplazar con tus credenciales de Supabase ══════════════════
+const SB_URL = 'YOUR_SUPABASE_URL';
+const SB_KEY = 'YOUR_SUPABASE_ANON_KEY';
+const BUCKET = 'geodata';
+// ═════════════════════════════════════════════════════════════════════════
+
+const PALETTES = [
+  {n:'Cian',      c:['#24536F','#2F80B3','#009FFF','#5BCDD9','#00F2FF']},
+  {n:'Rojo-Amar', c:['#800026','#D01A1C','#FFC44B','#F2D380','#FFFFCC']},
+  {n:'Oro',       c:['#4A3315','#AE7431','#E98500','#FFC300','#EFFF05']},
+  {n:'Violeta',   c:['#333374','#5151BA','#715AD7','#893CE6','#C571FF']},
+  {n:'Rojo',      c:['#3E2428','#5B2931','#760916','#BE1B1C','#EF4648']},
+  {n:'Verde',     c:['#16486D','#13769D','#01B797','#7ECC93','#D9ED92']},
+  {n:'Gris',      c:['#1a1a1a','#404040','#808080','#b0b0b0','#e0e0e0']},
+  {n:'Cian-Mag',  c:['#00F2FF','#6699CC','#CC66AA','#EE33CC','#FF00FF']},
+];
+
+let sb, previewMap;
+let geoData = null, geoUrl = null, geoFile = null;
+let numFields = [];
+let mapId = null;
+let layerSeq = 0;
+const layers = [];
+
+// ── INIT ─────────────────────────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', async () => {
+  sb = supabase.createClient(SB_URL, SB_KEY);
+  const { data: { session } } = await sb.auth.getSession();
+  if (session) initApp();
+  initDrop();
+});
+
+async function initApp() {
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  initPreviewMap();
+  fetchMaps();
+}
+
+// ── AUTH ─────────────────────────────────────────────────────────────────
+async function doLogin() {
+  const email = document.getElementById('li-email').value;
+  const pass  = document.getElementById('li-pass').value;
+  const errEl = document.getElementById('login-err');
+  errEl.style.display = 'none';
+  const { error } = await sb.auth.signInWithPassword({ email, password: pass });
+  if (error) {
+    errEl.textContent = '✗ ' + error.message.toUpperCase();
+    errEl.style.cssText = 'display:block;margin-top:10px;font-size:.48rem;color:#ff6060;letter-spacing:2px';
+  } else {
+    initApp();
+  }
+}
+
+async function doLogout() {
+  await sb.auth.signOut();
+  location.reload();
+}
+
+// ── MAP PREVIEW ───────────────────────────────────────────────────────────
+function initPreviewMap() {
+  previewMap = new maplibregl.Map({
+    container: 'preview-map',
+    style: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
+    center: [-58.42, -34.61], zoom: 12, bearing: 0, pitch: 0
+  });
+  previewMap.addControl(new maplibregl.NavigationControl(), 'top-right');
+  previewMap.on('move', updateVpInfo);
+}
+
+function updateVpInfo() {
+  if (!previewMap) return;
+  const c = previewMap.getCenter();
+  document.getElementById('vp-info').textContent =
+    `lng ${c.lng.toFixed(4)}  lat ${c.lat.toFixed(4)}  zoom ${previewMap.getZoom().toFixed(1)}  bearing ${previewMap.getBearing().toFixed(0)}°  pitch ${previewMap.getPitch().toFixed(0)}°`;
+}
+
+function refreshPreview() {
+  if (!previewMap || !geoData) return;
+  const run = () => {
+    // Remove old layers and source
+    layers.forEach(l => { try { if(previewMap.getLayer(l.id)) previewMap.removeLayer(l.id); } catch{} });
+    try { if(previewMap.getSource('p')) previewMap.removeSource('p'); } catch{}
+    previewMap.addSource('p', { type:'geojson', data: geoData });
+    layers.forEach(l => {
+      if (!l.field) return;
+      const stops = calcStops(geoData, l.field);
+      const colorExpr = ['interpolate',['linear'],['get',l.field], ...stops.flatMap((v,i) => [v, l.colors[i]])];
+      const is3d = l.type === 'fill-extrusion';
+      previewMap.addLayer({
+        id: l.id,
+        type: is3d ? 'fill-extrusion' : 'fill',
+        source: 'p',
+        paint: is3d ? {
+          'fill-extrusion-color': colorExpr,
+          'fill-extrusion-opacity': l.opacity,
+          'fill-extrusion-height': ['interpolate',['linear'],['get',l.field], stops[0], 20, stops[4], 400],
+          'fill-extrusion-base': 0
+        } : {
+          'fill-color': colorExpr,
+          'fill-opacity': l.opacity
+        }
+      });
+      if (!l.active) previewMap.setLayoutProperty(l.id, 'visibility', 'none');
+    });
+  };
+  if (previewMap.isStyleLoaded()) run();
+  else previewMap.once('styledata', () => { if(previewMap.isStyleLoaded()) run(); });
+}
+
+// ── FILE HANDLING ─────────────────────────────────────────────────────────
+function initDrop() {
+  const zone = document.getElementById('drop-zone');
+  zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('over'); });
+  zone.addEventListener('dragleave', () => zone.classList.remove('over'));
+  zone.addEventListener('drop', e => {
+    e.preventDefault(); zone.classList.remove('over');
+    if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
+  });
+}
+
+async function handleFile(file) {
+  if (!file) return;
+  status('LEYENDO ARCHIVO...');
+  document.getElementById('drop-name').textContent = file.name;
+  geoFile = file;
+  geoUrl  = null;
+  try {
+    geoData = JSON.parse(await file.text());
+    onGeoLoaded();
+  } catch { status('ERROR: JSON INVÁLIDO'); }
+}
+
+async function loadExtUrl() {
+  const url = document.getElementById('f-ext-url').value.trim();
+  if (!url) return;
+  status('CARGANDO URL...');
+  try {
+    const res = await fetch(url);
+    geoData = await res.json();
+    geoFile = null;
+    geoUrl  = url;
+    onGeoLoaded();
+  } catch { status('ERROR AL CARGAR URL'); }
+}
+
+function onGeoLoaded() {
+  numFields = Object.entries(geoData.features?.[0]?.properties || {})
+    .filter(([,v]) => typeof v === 'number' && !isNaN(v))
+    .map(([k]) => k);
+  status(`${geoData.features?.length || 0} features · ${numFields.length} campos numéricos`);
+  document.getElementById('sec-layers').style.display = 'block';
+  document.getElementById('sec-vp').style.display = 'block';
+  if (layers.length === 0) addLayer();
+  else renderLayers();
+  fitToGeo();
+  refreshPreview();
+}
+
+function calcStops(gj, field) {
+  const vals = (gj.features || [])
+    .map(f => f.properties[field])
+    .filter(v => typeof v === 'number' && !isNaN(v))
+    .sort((a,b) => a-b);
+  if (!vals.length) return [0,25,50,75,100];
+  const p = pct => vals[Math.max(0, Math.floor(pct*(vals.length-1)))];
+  return [p(0), p(0.25), p(0.5), p(0.75), p(1)].map(v => +v.toFixed(2));
+}
+
+function fitToGeo() {
+  if (!geoData?.features?.length || !previewMap) return;
+  let n=-90,s=90,e=-180,w=180;
+  const proc = ([lng,lat]) => { if(lng<w)w=lng;if(lng>e)e=lng;if(lat<s)s=lat;if(lat>n)n=lat; };
+  geoData.features.forEach(f => {
+    const g = f.geometry;
+    if (g.type==='Polygon') g.coordinates.forEach(r=>r.forEach(proc));
+    else if (g.type==='MultiPolygon') g.coordinates.forEach(p=>p.forEach(r=>r.forEach(proc)));
+    else if (g.type==='Point') proc(g.coordinates);
+  });
+  const go = () => previewMap.fitBounds([[w,s],[e,n]], {padding:40});
+  if (previewMap.isStyleLoaded()) go();
+  else previewMap.once('load', go);
+}
+
+// ── LAYERS ────────────────────────────────────────────────────────────────
+function addLayer() {
+  const id = 'l' + (++layerSeq);
+  layers.push({ id, label:'Capa '+layerSeq, field:numFields[0]||'', type:'fill',
+    paletteIdx:0, colors:[...PALETTES[0].c], opacity:0.6, active:true });
+  renderLayers();
+  if (geoData) refreshPreview();
+}
+
+function removeLayer(id) {
+  const i = layers.findIndex(l=>l.id===id);
+  if (i!==-1) layers.splice(i,1);
+  try { if(previewMap.getLayer(id)) previewMap.removeLayer(id); } catch{}
+  renderLayers();
+}
+
+function updateLayer(id, key, val) {
+  const l = layers.find(l=>l.id===id);
+  if (!l) return;
+  l[key] = val;
+  if (key==='paletteIdx') l.colors = [...PALETTES[val].c];
+  if (['field','type','paletteIdx','opacity','active'].includes(key)) refreshPreview();
+  if (key==='type' || key==='paletteIdx') renderLayers();
+  if (key==='label') {
+    const el = document.querySelector(`#card-${id} .lname-display`);
+    if (el) el.textContent = val;
+  }
+}
+
+function toggleCard(id) {
+  document.getElementById(`body-${id}`).classList.toggle('open');
+}
+
+function renderLayers() {
+  document.getElementById('layers-list').innerHTML = layers.map((l,i) => `
+    <div class="lcard" id="card-${l.id}">
+      <div class="lcard-hd" onclick="toggleCard('${l.id}')">
+        <span class="lnum">${i+1}</span>
+        <span class="lname-display">${l.label}</span>
+        <span style="font-size:.44rem;opacity:.35">▼</span>
+      </div>
+      <div class="lcard-body" id="body-${l.id}">
+        <label class="lbl">NOMBRE</label>
+        <input class="inp" value="${l.label}" style="margin-bottom:8px"
+          oninput="updateLayer('${l.id}','label',this.value)">
+
+        <label class="lbl">CAMPO A VISUALIZAR</label>
+        <select class="sel" style="margin-bottom:8px" onchange="updateLayer('${l.id}','field',this.value)">
+          ${numFields.map(f=>`<option value="${f}"${f===l.field?' selected':''}>${f}</option>`).join('')}
+        </select>
+
+        <label class="lbl">TIPO DE CAPA</label>
+        <div class="row-btns" style="margin-bottom:8px">
+          <button class="btn sm${l.type==='fill'?' on':''}" style="${l.type==='fill'?'background:var(--cyan);color:#000':''}"
+            onclick="updateLayer('${l.id}','type','fill')">PLANO</button>
+          <button class="btn sm${l.type==='fill-extrusion'?' on':''}" style="${l.type==='fill-extrusion'?'background:var(--cyan);color:#000':''}"
+            onclick="updateLayer('${l.id}','type','fill-extrusion')">3D</button>
+        </div>
+
+        <label class="lbl">PALETA DE COLOR</label>
+        <div class="pal-grid" style="margin-bottom:8px">
+          ${PALETTES.map((p,pi)=>`
+            <div class="pal-sw${pi===l.paletteIdx?' on':''}"
+              style="background:linear-gradient(to right,${p.c.join(',')})"
+              onclick="updateLayer('${l.id}','paletteIdx',${pi})" title="${p.n}"></div>
+          `).join('')}
+        </div>
+
+        <label class="lbl">OPACIDAD</label>
+        <div class="op-row" style="margin-bottom:8px">
+          <input type="range" class="op-sl" min="0" max="1" step="0.01" value="${l.opacity}"
+            style="--p:${l.opacity*100}%;flex:1"
+            oninput="updateLayer('${l.id}','opacity',parseFloat(this.value));this.style.setProperty('--p',(this.value*100)+'%');this.nextElementSibling.textContent=parseFloat(this.value).toFixed(2)">
+          <span class="op-val">${l.opacity.toFixed(2)}</span>
+        </div>
+
+        <label class="lbl" style="display:flex;align-items:center;gap:6px;cursor:pointer">
+          <input type="checkbox" ${l.active?'checked':''} onchange="updateLayer('${l.id}','active',this.checked)">
+          VISIBLE POR DEFECTO
+        </label>
+        <div style="height:8px"></div>
+        <button class="btn danger sm" onclick="removeLayer('${l.id}')">ELIMINAR CAPA</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+// ── SAVE / LOAD / DELETE ──────────────────────────────────────────────────
+async function saveMap() {
+  const title = document.getElementById('f-title').value.trim();
+  const slug  = document.getElementById('f-slug').value.trim();
+  if (!title || !slug) { status('ERROR: TÍTULO Y SLUG REQUERIDOS'); return; }
+  if (!geoData)        { status('ERROR: CARGÁ UN GEOJSON PRIMERO'); return; }
+  status('GUARDANDO...');
+
+  // 1. Upload file if needed
+  let finalUrl = geoUrl;
+  if (!finalUrl && geoFile) {
+    const fname = `${slug}-${Date.now()}.geojson`;
+    const { error: upErr } = await sb.storage.from(BUCKET).upload(fname, geoFile,
+      { contentType:'application/geo+json', upsert:true });
+    if (upErr) { status('ERROR STORAGE: ' + upErr.message); return; }
+    finalUrl = sb.storage.from(BUCKET).getPublicUrl(fname).data.publicUrl;
+  }
+
+  // 2. Build config JSON
+  const ctr = previewMap.getCenter();
+  const config = {
+    center:  [+ctr.lng.toFixed(5), +ctr.lat.toFixed(5)],
+    zoom:    +previewMap.getZoom().toFixed(3),
+    bearing: +previewMap.getBearing().toFixed(1),
+    pitch:   +previewMap.getPitch().toFixed(1),
+    layers: layers.map(l => ({
+      id:l.id, label:l.label, type:l.type, field:l.field,
+      colors:l.colors, opacity:l.opacity, active:l.active,
+      stops: calcStops(geoData, l.field)
+    }))
+  };
+
+  // 3. Upsert
+  const payload = { slug, title, geojson_url:finalUrl, config };
+  let error;
+  if (mapId) {
+    ({ error } = await sb.from('maps').update(payload).eq('id', mapId));
+  } else {
+    const { data, error:e } = await sb.from('maps').insert(payload).select().single();
+    error = e;
+    if (data) mapId = data.id;
+  }
+
+  if (error) { status('ERROR DB: ' + error.message); return; }
+  status('GUARDADO ✓');
+  showUrl(slug);
+  document.getElementById('btn-ver').style.display = '';
+  document.getElementById('btn-del').style.display = '';
+  fetchMaps();
+}
+
+async function deleteMap() {
+  if (!mapId || !confirm('¿Eliminar este mapa?')) return;
+  status('ELIMINANDO...');
+  const { error } = await sb.from('maps').delete().eq('id', mapId);
+  if (error) { status('ERROR: ' + error.message); return; }
+  newMap();
+  fetchMaps();
+  status('ELIMINADO');
+}
+
+async function fetchMaps() {
+  const { data } = await sb.from('maps').select('id,slug,title,updated_at').order('updated_at',{ascending:false});
+  const el = document.getElementById('maps-list');
+  if (!data?.length) { el.innerHTML = '<div class="empty">NO HAY MAPAS GUARDADOS</div>'; return; }
+  el.innerHTML = data.map(m=>`
+    <div class="mitem${m.id===mapId?' cur':''}" onclick="loadMapById('${m.id}')">
+      <div class="mitem-dot"></div>
+      <div>
+        <div class="mitem-title">${m.title}</div>
+        <div class="mitem-slug">/v/${m.slug}</div>
+      </div>
+    </div>
+  `).join('');
+}
+
+async function loadMapById(id) {
+  status('CARGANDO...');
+  const { data, error } = await sb.from('maps').select('*').eq('id',id).single();
+  if (error || !data) { status('ERROR AL CARGAR'); return; }
+  mapId = data.id;
+  document.getElementById('f-title').value = data.title;
+  document.getElementById('f-slug').value  = data.slug;
+
+  // Load GeoJSON from URL
+  const res = await fetch(data.geojson_url);
+  geoData = await res.json();
+  geoFile = null;
+  geoUrl  = data.geojson_url;
+  document.getElementById('f-ext-url').value = data.geojson_url;
+  numFields = Object.entries(geoData.features?.[0]?.properties || {})
+    .filter(([,v])=>typeof v==='number'&&!isNaN(v)).map(([k])=>k);
+
+  // Restore layers
+  layers.length = 0;
+  data.config.layers.forEach((l,i) => {
+    layerSeq = Math.max(layerSeq, i+1);
+    layers.push({ id:l.id, label:l.label, type:l.type, field:l.field,
+      paletteIdx:0, colors:[...l.colors], opacity:l.opacity, active:l.active });
+  });
+
+  document.getElementById('sec-layers').style.display = 'block';
+  document.getElementById('sec-vp').style.display = 'block';
+  document.getElementById('btn-ver').style.display = '';
+  document.getElementById('btn-del').style.display = '';
+  renderLayers();
+  showUrl(data.slug);
+
+  const cfg = data.config;
+  previewMap.flyTo({ center:cfg.center, zoom:cfg.zoom, bearing:cfg.bearing, pitch:cfg.pitch, duration:800 });
+  previewMap.once('idle', refreshPreview);
+
+  gotoTab('edit');
+  fetchMaps();
+  status('CARGADO: ' + data.title.toUpperCase());
+}
+
+// ── UI HELPERS ────────────────────────────────────────────────────────────
+function gotoTab(t) {
+  document.getElementById('t-edit').classList.toggle('on', t==='edit');
+  document.getElementById('t-list').classList.toggle('on', t==='list');
+  document.getElementById('p-edit').style.display = t==='edit' ? 'block':'none';
+  document.getElementById('p-list').style.display = t==='list' ? 'block':'none';
+}
+
+function newMap() {
+  mapId = null; geoData = null; geoFile = null; geoUrl = null; numFields = [];
+  layers.length = 0; layerSeq = 0;
+  ['f-title','f-slug','f-ext-url'].forEach(id => document.getElementById(id).value='');
+  document.getElementById('drop-name').textContent = '';
+  document.getElementById('url-box').style.display  = 'none';
+  document.getElementById('btn-ver').style.display  = 'none';
+  document.getElementById('btn-del').style.display  = 'none';
+  document.getElementById('sec-layers').style.display = 'none';
+  document.getElementById('sec-vp').style.display     = 'none';
+  document.getElementById('layers-list').innerHTML = '';
+  try { layers.forEach(l=>{ if(previewMap.getLayer(l.id)) previewMap.removeLayer(l.id); }); } catch{}
+  try { if(previewMap.getSource('p')) previewMap.removeSource('p'); } catch{}
+  gotoTab('edit');
+  status('NUEVO MAPA');
+}
+
+function autoSlug() {
+  const title = document.getElementById('f-title').value;
+  document.getElementById('f-slug').value = title.toLowerCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g,'')
+    .replace(/[^a-z0-9\s-]/g,'').replace(/\s+/g,'-').replace(/-+/g,'-').trim();
+}
+
+function showUrl(slug) {
+  const base = window.location.origin + '/v/' + slug;
+  const el = document.getElementById('url-box');
+  el.textContent = base;
+  el.style.display = 'block';
+}
+
+function copyUrl() {
+  const el = document.getElementById('url-box');
+  navigator.clipboard.writeText(el.textContent).then(() => {
+    const orig = el.textContent;
+    el.textContent = '✓ COPIADO';
+    setTimeout(() => el.textContent = orig, 1500);
+  });
+}
+
+function openViewer() {
+  const slug = document.getElementById('f-slug').value.trim();
+  if (slug) window.open('/v/' + slug, '_blank');
+}
+
+function status(msg) { document.getElementById('st').textContent = msg; }
+</script>
+</body>
+</html>

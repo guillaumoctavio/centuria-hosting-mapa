@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CENTURIA</title>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@100;400;800&display=swap" rel="stylesheet">
+  <link href="https://unpkg.com/maplibre-gl@4/dist/maplibre-gl.css" rel="stylesheet">
+  <script src="https://unpkg.com/maplibre-gl@4/dist/maplibre-gl.js"></script>
+  <script src="https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <style>
+    :root { --bg:#000103; --cyan:#00f2ff; --dim:rgba(0,242,255,0.12); --panel:rgba(0,1,3,0.93); }
+    *{margin:0;padding:0;box-sizing:border-box;}
+    body{background:var(--bg);color:var(--cyan);font-family:'JetBrains Mono',monospace;overflow:hidden;}
+    #map{position:fixed;inset:0;}
+
+    /* Panel */
+    .panel{
+      position:fixed;top:20px;right:20px;width:280px;
+      background:var(--panel);border:1px solid rgba(0,242,255,.3);
+      backdrop-filter:blur(20px);z-index:100;
+      max-height:calc(100vh - 40px);overflow-y:auto;
+      scrollbar-width:thin;scrollbar-color:var(--dim) transparent;
+      transform-origin:top right;transition:transform .15s;
+    }
+
+    /* Header */
+    .ph{padding:18px 20px;border-bottom:1px solid var(--dim);}
+    .ph-eye{font-size:.46rem;letter-spacing:3px;opacity:.45;margin-bottom:3px;}
+    .ph-title{font-size:.9rem;font-weight:800;letter-spacing:3px;color:#fff;line-height:1.3;}
+    .ph-sub{font-size:.5rem;letter-spacing:1px;opacity:.55;margin-top:5px;font-weight:100;}
+
+    /* Zoom bar */
+    .topbar{display:flex;align-items:center;border-bottom:1px solid var(--dim);}
+    .zoom-ctrl{display:flex;align-items:center;gap:2px;padding:0 10px;border-left:1px solid var(--dim);flex-shrink:0;}
+    .zoom-btn{background:none;border:none;color:var(--cyan);cursor:pointer;font-size:1rem;padding:6px 5px;font-family:inherit;line-height:1;transition:color .2s;user-select:none;}
+    .zoom-btn:hover{color:#fff;}
+    .zoom-pct{font-size:.42rem;letter-spacing:1px;opacity:.5;width:26px;text-align:center;}
+
+    /* Sections */
+    .sec{padding:12px 20px;border-bottom:1px solid var(--dim);}
+    .sec-lbl{font-size:.44rem;letter-spacing:3px;opacity:.4;margin-bottom:8px;text-transform:uppercase;}
+
+    /* Layer rows */
+    .layer-row{display:flex;align-items:center;gap:9px;padding:5px 0;cursor:pointer;user-select:none;transition:opacity .2s;}
+    .layer-row:hover{opacity:.8;}
+    .layer-row input[type=checkbox]{appearance:none;width:12px;height:12px;flex-shrink:0;border:1px solid var(--cyan);cursor:pointer;position:relative;transition:.2s;}
+    .layer-row input[type=checkbox]:checked::after{content:'';position:absolute;inset:2px;background:var(--cyan);}
+    .swatch{width:10px;height:10px;border-radius:2px;flex-shrink:0;}
+    .lname{font-size:.56rem;letter-spacing:1px;color:rgba(255,255,255,.85);}
+
+    /* Basemap */
+    .bm-grid{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-top:4px;}
+    .bm-btn{background:rgba(0,242,255,.04);border:1px solid rgba(0,242,255,.18);color:rgba(255,255,255,.6);font-size:9px;letter-spacing:2px;padding:9px 4px;cursor:pointer;font-family:inherit;transition:.2s;text-align:center;}
+    .bm-btn:hover{background:rgba(0,242,255,.1);color:rgba(255,255,255,.9);}
+    .bm-btn.on{background:rgba(0,242,255,.15);border-color:var(--cyan);color:#fff;font-weight:800;}
+
+    /* Tooltip */
+    .tooltip{position:fixed;pointer-events:none;z-index:200;background:rgba(0,1,3,.96);border:1px solid rgba(0,242,255,.4);backdrop-filter:blur(10px);padding:12px 16px;min-width:190px;display:none;color:var(--cyan);}
+    .tt-title{font-size:11px;letter-spacing:2px;color:var(--cyan);margin-bottom:10px;font-weight:800;}
+    .tt-row{display:flex;justify-content:space-between;gap:20px;padding:4px 0;border-bottom:1px solid rgba(255,255,255,.05);}
+    .tt-key{font-size:11px;color:rgba(0,242,255,.75);white-space:nowrap;}
+    .tt-val{font-size:12px;color:#fff;font-weight:800;}
+
+    /* Loading state */
+    #loading{position:fixed;inset:0;z-index:500;display:flex;align-items:center;justify-content:center;background:var(--bg);}
+    .loading-inner{text-align:center;}
+    .loading-title{font-size:1.2rem;font-weight:800;letter-spacing:8px;color:#fff;margin-bottom:12px;}
+    .loading-msg{font-size:.5rem;letter-spacing:4px;opacity:.5;}
+
+    /* Error state */
+    #error-screen{position:fixed;inset:0;z-index:500;display:none;align-items:center;justify-content:center;background:var(--bg);}
+    .error-box{text-align:center;padding:40px;}
+    .error-code{font-size:3rem;font-weight:800;color:rgba(0,242,255,.2);margin-bottom:10px;}
+    .error-msg{font-size:.55rem;letter-spacing:3px;opacity:.6;}
+
+    .maplibregl-ctrl-attrib{font-size:9px!important;opacity:.4;}
+  </style>
+</head>
+<body>
+
+<div id="loading">
+  <div class="loading-inner">
+    <div class="loading-title">CENTURIA</div>
+    <div class="loading-msg" id="load-msg">CARGANDO MAPA...</div>
+  </div>
+</div>
+
+<div id="error-screen">
+  <div class="error-box">
+    <div class="error-code">404</div>
+    <div class="error-msg" id="err-msg">MAPA NO ENCONTRADO</div>
+  </div>
+</div>
+
+<div id="map"></div>
+
+<div class="panel" id="panel" style="display:none">
+  <div class="ph">
+    <div class="ph-eye">CENTURIA | GEMELO TERRITORIAL</div>
+    <div class="ph-title" id="map-title"></div>
+    <div class="ph-sub" id="map-desc"></div>
+  </div>
+
+  <div class="topbar">
+    <a href="/" class="layer-row" style="flex:1;padding:10px 20px;font-size:.5rem;letter-spacing:3px;text-decoration:none;color:var(--cyan);border-bottom:none;">← PORTAL</a>
+    <div class="zoom-ctrl">
+      <button class="zoom-btn" id="zoom-out">−</button>
+      <span class="zoom-pct" id="zoom-pct">100%</span>
+      <button class="zoom-btn" id="zoom-in">+</button>
+    </div>
+  </div>
+
+  <div id="layers-panel"></div>
+
+  <div class="sec">
+    <div class="sec-lbl">MAPA BASE</div>
+    <div class="bm-grid">
+      <button class="bm-btn on" data-style="dark">OSCURO</button>
+      <button class="bm-btn" data-style="voyager">GPS</button>
+      <button class="bm-btn" data-style="light">BLANCO</button>
+      <button class="bm-btn" data-style="satellite">SATÉLITE</button>
+    </div>
+  </div>
+</div>
+
+<div class="tooltip" id="tt"></div>
+
+<script>
+// ══ CONFIG ════════════════════════════════════════════════════════════════
+const SB_URL = 'YOUR_SUPABASE_URL';
+const SB_KEY = 'YOUR_SUPABASE_ANON_KEY';
+// ═════════════════════════════════════════════════════════════════════════
+
+const BASEMAPS = {
+  dark:      'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
+  voyager:   'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json',
+  light:     'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json',
+  satellite: { version:8, sources:{ sat:{ type:'raster',
+    tiles:['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'],
+    tileSize:256, attribution:'© Esri' } }, layers:[{id:'sat',type:'raster',source:'sat'}] }
+};
+
+let map, mapConfig, geojson, _selId = null;
+
+// ── BOOT ──────────────────────────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', async () => {
+  const slug = getSlug();
+  if (!slug) return showError('SIN SLUG EN LA URL');
+
+  const sb = supabase.createClient(SB_URL, SB_KEY);
+  const { data, error } = await sb.from('maps').select('*').eq('slug', slug).single();
+  if (error || !data) return showError('MAPA NO ENCONTRADO: ' + slug);
+
+  document.title = 'CENTURIA | ' + data.title;
+  document.getElementById('map-title').textContent = data.title;
+  document.getElementById('map-desc').textContent  = data.description || '';
+  mapConfig = data.config;
+
+  // Init map
+  map = new maplibregl.Map({
+    container: 'map',
+    style: BASEMAPS.dark,
+    center:  mapConfig.center  || [-58.42,-34.61],
+    zoom:    mapConfig.zoom    || 12,
+    bearing: mapConfig.bearing || 0,
+    pitch:   mapConfig.pitch   || 0,
+    attributionControl: { compact:true }
+  });
+
+  map.on('load', async () => {
+    // Load GeoJSON
+    setLoadMsg('CARGANDO DATOS...');
+    const res = await fetch(data.geojson_url);
+    geojson = await res.json();
+
+    setupLayers();
+    setupPanel();
+    setupTooltip();
+    setupClick();
+    setupBasemaps();
+    setupZoom();
+
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('panel').style.display = 'block';
+  });
+});
+
+function getSlug() {
+  // Support /v/slug (via Vercel rewrite) OR ?slug=slug
+  const path = window.location.pathname.match(/\/v\/([^/]+)/);
+  if (path) return path[1];
+  return new URLSearchParams(window.location.search).get('slug');
+}
+
+// ── LAYERS ────────────────────────────────────────────────────────────────
+const __lc = {}; // layer configs (mirrors editor structure)
+const __ld = {}; // layer defs (type + extra paint)
+
+function setupLayers() {
+  // Add GeoJSON source
+  if (!map.getSource('src')) {
+    map.addSource('src', { type:'geojson', data: geojson });
+  }
+
+  (mapConfig.layers || []).forEach(l => {
+    // Store config
+    const is3d = l.type === 'fill-extrusion';
+    __lc[l.id] = {
+      opK: is3d ? 'fill-extrusion-opacity' : 'fill-opacity',
+      colK: is3d ? 'fill-extrusion-color' : 'fill-color',
+      mode: 'interp', field: l.field, stops: l.stops, colors: [...l.colors], op: l.opacity
+    };
+    __ld[l.id] = {
+      type: l.type,
+      extra: is3d ? {
+        'fill-extrusion-height': ['interpolate',['linear'],['get',l.field], l.stops[0],20, l.stops[4],400],
+        'fill-extrusion-base': 0
+      } : {}
+    };
+
+    // Build paint
+    const colorExpr = ['interpolate',['linear'],['get',l.field], ...l.stops.flatMap((v,i)=>[v,l.colors[i]])];
+    const paint = { [__lc[l.id].opK]: l.opacity, [__lc[l.id].colK]: colorExpr };
+    Object.assign(paint, __ld[l.id].extra);
+
+    map.addLayer({ id:l.id, type:l.type, source:'src', paint, layout:{ visibility: l.active?'visible':'none' } });
+  });
+
+  // Highlight layers
+  map.addLayer({ id:'__hl-fill', type:'fill', source:'src',
+    filter:['==',['get','ID_Territorio'],-1],
+    paint:{'fill-color':'#ffffff','fill-opacity':0.18} });
+  map.addLayer({ id:'__hl-line', type:'line', source:'src',
+    filter:['==',['get','ID_Territorio'],-1],
+    paint:{'line-color':'#00f2ff','line-width':3,'line-opacity':1} });
+}
+
+function rebuildLayers() {
+  ['__hl-line','__hl-fill',...Object.keys(__lc).reverse()].forEach(id => {
+    try { if(map.getLayer(id)) map.removeLayer(id); } catch{}
+  });
+  try { if(map.getSource('src')) map.removeSource('src'); } catch{}
+  setupLayers();
+  // Restore visibility from checkboxes
+  document.querySelectorAll('.layer-row input[type=checkbox]').forEach(cb => {
+    const lid = cb.closest('[data-lid]')?.dataset.lid;
+    if (lid && map.getLayer(lid)) map.setLayoutProperty(lid,'visibility',cb.checked?'visible':'none');
+  });
+  if (_selId !== null) {
+    const f = ['==',['get','ID_Territorio'],_selId];
+    if(map.getLayer('__hl-fill')) map.setFilter('__hl-fill',f);
+    if(map.getLayer('__hl-line')) map.setFilter('__hl-line',f);
+  }
+}
+
+// ── PANEL ─────────────────────────────────────────────────────────────────
+function setupPanel() {
+  // Group layers by... all in one section for now
+  const html = (mapConfig.layers || []).map(l => `
+    <label class="layer-row" data-lid="${l.id}" style="padding:5px 0">
+      <input type="checkbox" ${l.active?'checked':''}>
+      <span class="swatch" style="background:linear-gradient(to right,${l.colors.join(',')})"></span>
+      <span class="lname">${l.label}</span>
+    </label>
+  `).join('');
+
+  document.getElementById('layers-panel').innerHTML =
+    `<div class="sec"><div class="sec-lbl">CAPAS</div>${html}</div>`;
+
+  document.querySelectorAll('.layer-row input[type=checkbox]').forEach(cb => {
+    cb.addEventListener('change', () => {
+      const lid = cb.closest('[data-lid]').dataset.lid;
+      map.setLayoutProperty(lid, 'visibility', cb.checked ? 'visible' : 'none');
+    });
+  });
+}
+
+// ── TOOLTIP ───────────────────────────────────────────────────────────────
+function visLayers() {
+  return Object.keys(__lc).filter(lid => {
+    try { return map.getLayoutProperty(lid,'visibility')==='visible'; } catch{ return false; }
+  });
+}
+
+function setupTooltip() {
+  const tt = document.getElementById('tt');
+  map.on('mousemove', e => {
+    const hits = map.queryRenderedFeatures(e.point, { layers: visLayers() });
+    if (!hits.length) { tt.style.display='none'; map.getCanvas().style.cursor=''; return; }
+    const p = hits[0].properties;
+    const rows = Object.entries(p)
+      .filter(([,v]) => v !== null && v !== undefined && v !== '')
+      .slice(0, 8)
+      .map(([k,v]) => `<div class="tt-row"><span class="tt-key">${k}</span><span class="tt-val">${typeof v==='number'?v.toLocaleString('es-AR'):v}</span></div>`)
+      .join('');
+    tt.style.display = 'block';
+    tt.style.left = (e.originalEvent.clientX + 14) + 'px';
+    tt.style.top  = (e.originalEvent.clientY - 10) + 'px';
+    tt.innerHTML  = `<div class="tt-title">RADIO ${p.ID_Territorio || p.id || ''}</div>${rows}`;
+    map.getCanvas().style.cursor = 'pointer';
+  });
+  map.on('mouseout', () => { tt.style.display='none'; map.getCanvas().style.cursor=''; });
+}
+
+// ── CLICK HIGHLIGHT + FLY ─────────────────────────────────────────────────
+function setupClick() {
+  map.on('click', e => {
+    const hits = map.queryRenderedFeatures(e.point, { layers: visLayers() });
+    if (!hits.length) { _selId=null; clearHighlight(); return; }
+    const f = hits[0];
+    const id = f.properties.ID_Territorio ?? f.properties.id ?? null;
+    if (id === _selId) { _selId=null; clearHighlight(); return; }
+    _selId = id;
+    const filt = ['==',['get', id!=null&&Object.keys(f.properties).includes('ID_Territorio')?'ID_Territorio':'id'], id];
+    if(map.getLayer('__hl-fill')) map.setFilter('__hl-fill', filt);
+    if(map.getLayer('__hl-line')) map.setFilter('__hl-line', filt);
+    map.fitBounds(getBBox(f), { padding:100, duration:900, maxZoom:17, pitch:map.getPitch(), bearing:map.getBearing() });
+  });
+}
+
+function clearHighlight() {
+  const f = ['==',['get','ID_Territorio'],-1];
+  if(map.getLayer('__hl-fill')) map.setFilter('__hl-fill',f);
+  if(map.getLayer('__hl-line')) map.setFilter('__hl-line',f);
+}
+
+function getBBox(feature) {
+  let n=-90,s=90,e=-180,w=180;
+  const p=([lng,lat])=>{if(lng<w)w=lng;if(lng>e)e=lng;if(lat<s)s=lat;if(lat>n)n=lat;};
+  const g=feature.geometry;
+  if(g.type==='Polygon') g.coordinates.forEach(r=>r.forEach(p));
+  if(g.type==='MultiPolygon') g.coordinates.forEach(poly=>poly.forEach(r=>r.forEach(p)));
+  return [[w,s],[e,n]];
+}
+
+// ── BASEMAP SWITCHER ──────────────────────────────────────────────────────
+function setupBasemaps() {
+  document.querySelectorAll('.bm-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (btn.classList.contains('on')) return;
+      document.querySelectorAll('.bm-btn').forEach(b=>b.classList.remove('on'));
+      btn.classList.add('on');
+      // Remove custom layers before switching
+      ['__hl-line','__hl-fill',...Object.keys(__lc).reverse()].forEach(id=>{
+        try { if(map.getLayer(id)) map.removeLayer(id); } catch{}
+      });
+      try { if(map.getSource('src')) map.removeSource('src'); } catch{}
+      map.setStyle(BASEMAPS[btn.dataset.style]);
+      const onReady = () => {
+        if (!map.isStyleLoaded()) return;
+        map.off('styledata', onReady);
+        rebuildLayers();
+      };
+      map.on('styledata', onReady);
+    });
+  });
+}
+
+// ── PANEL ZOOM ────────────────────────────────────────────────────────────
+function setupZoom() {
+  const panel = document.getElementById('panel');
+  const pctEl = document.getElementById('zoom-pct');
+  const STEP=0.1, MIN=0.6, MAX=1.6;
+  let scale = parseFloat(localStorage.getItem('centuria-v-scale')||'1');
+  const apply = () => {
+    panel.style.transform = scale===1?'':` scale(${scale})`;
+    pctEl.textContent = Math.round(scale*100)+'%';
+    localStorage.setItem('centuria-v-scale', scale);
+  };
+  apply();
+  document.getElementById('zoom-in').onclick  = ()=>{ scale=Math.min(MAX,+(scale+STEP).toFixed(1)); apply(); };
+  document.getElementById('zoom-out').onclick = ()=>{ scale=Math.max(MIN,+(scale-STEP).toFixed(1)); apply(); };
+}
+
+// ── UTILS ─────────────────────────────────────────────────────────────────
+function setLoadMsg(msg) { document.getElementById('load-msg').textContent = msg; }
+function showError(msg) {
+  document.getElementById('loading').style.display = 'none';
+  document.getElementById('err-msg').textContent = msg;
+  document.getElementById('error-screen').style.display = 'flex';
+}
+</script>
+</body>
+</html>
