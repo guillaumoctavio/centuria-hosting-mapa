@@ -220,6 +220,7 @@
             <button class="btn full" onclick="saveMap()" style="flex:2">GUARDAR</button>
             <button class="btn" id="btn-ver" onclick="openViewer()" style="display:none;flex:1">VER →</button>
           </div>
+          <button class="btn full" onclick="exportHtml()" style="margin-bottom:7px">↓ EXPORTAR HTML STANDALONE</button>
           <button class="btn danger full" id="btn-del" onclick="deleteMap()" style="display:none">ELIMINAR MAPA</button>
         </div>
       </div>
@@ -659,6 +660,7 @@ async function saveMap() {
     mapSha  = res.content.sha;
     mapSlug = slug;
 
+    await updateMapsIndex(slug, title, 'upsert');
     showOk(`✓ Guardado. Vercel redeploya en ~30s.\nURL: ${window.location.origin}/v/${slug}`);
     st('GUARDADO ✓');
     showUrl(slug);
@@ -676,6 +678,7 @@ async function deleteMap() {
   st('ELIMINANDO...');
   try {
     await ghDelete(`/maps/${mapSlug}.json`, `delete map: ${mapSlug}`, mapSha);
+    await updateMapsIndex(mapSlug, '', 'delete');
     newMap(); loadMapsList(); st('ELIMINADO');
   } catch(e) { showErr('Error al eliminar: ' + e.message); }
 }
@@ -809,6 +812,208 @@ function showOk(msg) {
   t.style.display = 'block';
   clearTimeout(t._timer);
   t._timer = setTimeout(() => t.style.display='none', 4000);
+}
+
+// ── MAPS INDEX (para el menú principal) ───────────────────────────────────
+async function updateMapsIndex(slug, title, action) {
+  let sha = null, list = [];
+  try {
+    const d = await ghGet('/maps/index.json');
+    sha = d.sha;
+    list = JSON.parse(decodeURIComponent(escape(atob(d.content.replace(/\n/g,'')))));
+  } catch {}
+  if (action === 'upsert') {
+    const idx = list.findIndex(m => m.slug === slug);
+    const entry = { slug, title, updated_at: new Date().toISOString() };
+    if (idx >= 0) list[idx] = entry; else list.unshift(entry);
+  } else {
+    list = list.filter(m => m.slug !== slug);
+  }
+  try {
+    await ghPut('/maps/index.json', JSON.stringify(list, null, 2), `index: ${action} ${slug}`, sha);
+  } catch(e) { console.warn('index.json update failed:', e.message); }
+}
+
+// ── EXPORT STANDALONE HTML ────────────────────────────────────────────────
+function exportHtml() {
+  if (!geoData || !layers.length) { showErr('Cargá datos y configurá capas antes de exportar.'); return; }
+  const title = document.getElementById('f-title').value || 'Mapa';
+  const c = previewMap.getCenter();
+  const cfg = {
+    title,
+    center: [+c.lng.toFixed(5), +c.lat.toFixed(5)],
+    zoom: +previewMap.getZoom().toFixed(3),
+    bearing: +previewMap.getBearing().toFixed(1),
+    pitch: +previewMap.getPitch().toFixed(1),
+    layers: layers.map(l => ({
+      id:l.id, label:l.label, type:l.type, field:l.field,
+      colors:l.colors, stops:l.stops||[], opacity:l.opacity, active:l.active,
+      showLegend: l.showLegend!==false, legendLabel: l.legendLabel||''
+    }))
+  };
+  const html = generateViewerHtml(geoData, cfg);
+  const blob = new Blob([html], { type:'text/html;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = title.toLowerCase().replace(/\s+/g,'-').replace(/[^a-z0-9-]/g,'') + '.html';
+  a.click();
+  URL.revokeObjectURL(a.href);
+  showOk('✓ HTML exportado: ' + a.download);
+}
+
+function generateViewerHtml(geo, cfg) {
+  const geoStr = JSON.stringify(geo);
+  const cfgStr = JSON.stringify(cfg);
+  // Note: viewer JS avoids template literals to allow embedding in this template string
+  return `<!DOCTYPE html><html lang="es">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CENTURIA | ${cfg.title}</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700;800&display=swap" rel="stylesheet">
+<link href="https://unpkg.com/maplibre-gl@4/dist/maplibre-gl.css" rel="stylesheet">
+<script src="https://unpkg.com/maplibre-gl@4/dist/maplibre-gl.js"><\/script>
+<style>
+:root{--bg:#000103;--cyan:#00f2ff;--dim:rgba(0,242,255,0.12);--panel:rgba(0,1,3,0.93);}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:var(--bg);color:var(--cyan);font-family:'JetBrains Mono',monospace;overflow:hidden;}
+#map{position:fixed;inset:0;}
+.panel{position:fixed;top:20px;right:20px;width:280px;background:var(--panel);border:1px solid rgba(0,242,255,.3);backdrop-filter:blur(20px);z-index:100;max-height:calc(100vh - 40px);overflow-y:auto;transform-origin:top right;}
+.ph{padding:16px 18px;border-bottom:1px solid var(--dim);}
+.ph-eye{font-size:10px;letter-spacing:3px;opacity:.4;font-weight:700;}
+.ph-title{font-size:14px;font-weight:800;letter-spacing:3px;color:#fff;margin-top:3px;}
+.zctr{display:flex;align-items:center;gap:2px;padding:7px 14px;border-bottom:1px solid var(--dim);}
+.zbtn{background:none;border:none;color:var(--cyan);cursor:pointer;font-size:1.1rem;padding:4px 7px;font-family:inherit;line-height:1;}
+.zpct{font-size:10px;opacity:.5;flex:1;text-align:center;}
+.sec{padding:12px 18px;border-bottom:1px solid var(--dim);}
+.sec-lbl{font-size:10px;letter-spacing:3px;color:rgba(0,242,255,.65);margin-bottom:8px;font-weight:700;}
+.lrow{display:flex;align-items:center;gap:9px;padding:5px 0;cursor:pointer;user-select:none;}
+.lrow input{accent-color:var(--cyan);width:12px;height:12px;cursor:pointer;}
+.sw{width:10px;height:10px;border-radius:2px;flex-shrink:0;}
+.ln{font-size:11px;color:rgba(255,255,255,.9);font-weight:700;}
+.bm-grid{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-top:4px;}
+.bm-btn{background:rgba(0,242,255,.04);border:1px solid rgba(0,242,255,.18);color:rgba(255,255,255,.6);font-size:9px;letter-spacing:2px;padding:9px 4px;cursor:pointer;font-family:inherit;text-align:center;transition:.2s;}
+.bm-btn.on{background:rgba(0,242,255,.15);border-color:var(--cyan);color:#fff;font-weight:800;}
+.tt{position:fixed;pointer-events:none;z-index:200;background:rgba(0,1,3,.96);border:1px solid rgba(0,242,255,.4);backdrop-filter:blur(10px);padding:12px 16px;min-width:190px;display:none;color:var(--cyan);}
+.tt-t{font-size:11px;letter-spacing:2px;color:var(--cyan);margin-bottom:10px;font-weight:800;}
+.tt-r{display:flex;justify-content:space-between;gap:20px;padding:4px 0;border-bottom:1px solid rgba(255,255,255,.05);}
+.tt-k{font-size:11px;color:rgba(0,242,255,.75);white-space:nowrap;}
+.tt-v{font-size:12px;color:#fff;font-weight:800;}
+.li{margin-bottom:12px;}.ll{font-size:10px;color:rgba(255,255,255,.75);margin-bottom:5px;font-weight:700;letter-spacing:1px;}
+.lb{height:8px;border-radius:3px;margin-bottom:3px;}
+.lv{display:flex;justify-content:space-between;font-size:10px;opacity:.55;}
+</style>
+</head>
+<body>
+<div id="map"></div>
+<div class="panel" id="panel">
+  <div class="ph"><div class="ph-eye">CENTURIA | GEMELO TERRITORIAL</div><div class="ph-title">${cfg.title}</div></div>
+  <div class="zctr"><button class="zbtn" id="zo">&#8722;</button><span class="zpct" id="zp">100%</span><button class="zbtn" id="zi">+</button></div>
+  <div id="lp"></div>
+  <div class="sec"><div class="sec-lbl">MAPA BASE</div><div class="bm-grid">
+    <button class="bm-btn on" data-s="dark">OSCURO</button>
+    <button class="bm-btn" data-s="voyager">GPS</button>
+    <button class="bm-btn" data-s="light">BLANCO</button>
+    <button class="bm-btn" data-s="satellite">SAT&#201;LITE</button>
+  </div></div>
+  <div class="sec" id="ls" style="display:none"><div class="sec-lbl">LEYENDA</div><div id="lc"></div></div>
+</div>
+<div class="tt" id="tt"></div>
+<script>
+var GEO=${geoStr};
+var CFG=${cfgStr};
+var BM={dark:'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',voyager:'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json',light:'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json',satellite:{version:8,sources:{sat:{type:'raster',tiles:['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'],tileSize:256,attribution:'\\u00a9 Esri'}},layers:[{id:'sat',type:'raster',source:'sat'}]}};
+var lc={},ld={},sel=null;
+var map=new maplibregl.Map({container:'map',style:BM.dark,center:CFG.center,zoom:CFG.zoom,bearing:CFG.bearing,pitch:CFG.pitch,attributionControl:{compact:true}});
+map.on('load',function(){addL();buildP();addTT();addClick();addBM();addZoom();buildLeg();});
+function addL(){
+  if(!map.getSource('s'))map.addSource('s',{type:'geojson',data:GEO});
+  CFG.layers.forEach(function(l){
+    var is3=l.type==='fill-extrusion';
+    lc[l.id]={opK:is3?'fill-extrusion-opacity':'fill-opacity',colK:is3?'fill-extrusion-color':'fill-color',field:l.field,stops:l.stops,colors:l.colors.slice(),op:l.opacity};
+    ld[l.id]={type:l.type,extra:is3?{'fill-extrusion-height':['interpolate',['linear'],['get',l.field],l.stops[0],20,l.stops[l.stops.length-1],400],'fill-extrusion-base':0}:{}};
+    var ce=['interpolate',['linear'],['get',l.field]].concat(l.stops.reduce(function(a,v,i){return a.concat([v,l.colors[i]]);},[]));
+    var p={};p[lc[l.id].opK]=l.opacity;p[lc[l.id].colK]=ce;Object.assign(p,ld[l.id].extra);
+    map.addLayer({id:l.id,type:l.type,source:'s',paint:p,layout:{visibility:l.active?'visible':'none'}});
+  });
+  map.addLayer({id:'__hf',type:'fill',source:'s',filter:['==',['get','ID_Territorio'],-1],paint:{'fill-color':'#ffffff','fill-opacity':0.18}});
+  map.addLayer({id:'__hl',type:'line',source:'s',filter:['==',['get','ID_Territorio'],-1],paint:{'line-color':'#00f2ff','line-width':3,'line-opacity':1}});
+}
+function rebuildL(){
+  ['__hl','__hf'].concat(Object.keys(lc).reverse()).forEach(function(id){try{if(map.getLayer(id))map.removeLayer(id);}catch(e){}});
+  try{if(map.getSource('s'))map.removeSource('s');}catch(e){}
+  addL();
+  document.querySelectorAll('[data-lid] input').forEach(function(cb){var lid=cb.closest('[data-lid]').dataset.lid;if(map.getLayer(lid))map.setLayoutProperty(lid,'visibility',cb.checked?'visible':'none');});
+  if(sel!==null){var f=['==',['get','ID_Territorio'],sel];if(map.getLayer('__hf'))map.setFilter('__hf',f);if(map.getLayer('__hl'))map.setFilter('__hl',f);}
+}
+function visL(){return Object.keys(lc).filter(function(id){try{return map.getLayoutProperty(id,'visibility')==='visible';}catch(e){return false;}});}
+function buildP(){
+  var html='<div class="sec"><div class="sec-lbl">CAPAS</div>';
+  CFG.layers.forEach(function(l){html+='<label class="lrow" data-lid="'+l.id+'"><input type="checkbox"'+(l.active?' checked':'')+' /><span class="sw" style="background:linear-gradient(to right,'+l.colors.join(',')+')" /><span class="ln">'+l.label+'</span></label>';});
+  html+='</div>';
+  document.getElementById('lp').innerHTML=html;
+  document.querySelectorAll('[data-lid] input').forEach(function(cb){cb.addEventListener('change',function(){var lid=cb.closest('[data-lid]').dataset.lid;map.setLayoutProperty(lid,'visibility',cb.checked?'visible':'none');buildLeg();});});
+}
+function addTT(){
+  var tt=document.getElementById('tt');
+  map.on('mousemove',function(e){
+    var hits=map.queryRenderedFeatures(e.point,{layers:visL()});
+    if(!hits.length){tt.style.display='none';map.getCanvas().style.cursor='';return;}
+    var p=hits[0].properties,rows='';
+    Object.entries(p).filter(function(kv){return kv[1]!==null&&kv[1]!==undefined&&kv[1]!=='';}).slice(0,8).forEach(function(kv){rows+='<div class="tt-r"><span class="tt-k">'+kv[0]+'</span><span class="tt-v">'+(typeof kv[1]==='number'?kv[1].toLocaleString('es-AR'):kv[1])+'</span></div>';});
+    tt.style.display='block';tt.style.left=(e.originalEvent.clientX+14)+'px';tt.style.top=(e.originalEvent.clientY-10)+'px';
+    tt.innerHTML='<div class="tt-t">RADIO '+(p.ID_Territorio||p.id||'')+'</div>'+rows;
+    map.getCanvas().style.cursor='pointer';
+  });
+  map.on('mouseout',function(){tt.style.display='none';map.getCanvas().style.cursor='';});
+}
+function addClick(){
+  map.on('click',function(e){
+    var hits=map.queryRenderedFeatures(e.point,{layers:visL()});
+    if(!hits.length){sel=null;clrH();return;}
+    var f=hits[0],idf='ID_Territorio' in f.properties?'ID_Territorio':'id',id=f.properties[idf]||null;
+    if(id===sel){sel=null;clrH();return;}
+    sel=id;var ft=['==',['get',idf],id];
+    if(map.getLayer('__hf'))map.setFilter('__hf',ft);if(map.getLayer('__hl'))map.setFilter('__hl',ft);
+    var n=-90,s=90,ex=-180,w=180,g=f.geometry;
+    function pr(c){if(c[0]<w)w=c[0];if(c[0]>ex)ex=c[0];if(c[1]<s)s=c[1];if(c[1]>n)n=c[1];}
+    if(g.type==='Polygon')g.coordinates.forEach(function(r){r.forEach(pr);});
+    if(g.type==='MultiPolygon')g.coordinates.forEach(function(p2){p2.forEach(function(r){r.forEach(pr);});});
+    map.fitBounds([[w,s],[ex,n]],{padding:100,duration:900,maxZoom:17,pitch:map.getPitch(),bearing:map.getBearing()});
+  });
+}
+function clrH(){var f=['==',['get','ID_Territorio'],-1];if(map.getLayer('__hf'))map.setFilter('__hf',f);if(map.getLayer('__hl'))map.setFilter('__hl',f);}
+function buildLeg(){
+  var vl=CFG.layers.filter(function(l){if(l.showLegend===false)return false;try{return map.getLayoutProperty(l.id,'visibility')==='visible';}catch(e){return l.active;}});
+  var ls=document.getElementById('ls'),lct=document.getElementById('lc');
+  if(!vl.length){ls.style.display='none';return;}
+  ls.style.display='block';
+  function fv(v){if(typeof v!=='number')return String(v);return Math.abs(v)>=1000?Math.round(v).toLocaleString('es-AR'):v%1===0?String(v):v.toFixed(1);}
+  lct.innerHTML=vl.map(function(l){var lbl=l.legendLabel||l.label,s=l.stops||[];return '<div class="li"><div class="ll">'+lbl+'</div><div class="lb" style="background:linear-gradient(to right,'+l.colors.join(',')+')" /><div class="lv"><span>'+fv(s[0])+'</span><span>'+fv(s[Math.floor(s.length/2)])+'</span><span>'+fv(s[s.length-1])+'</span></div></div>';}).join('');
+}
+function addBM(){
+  document.querySelectorAll('.bm-btn').forEach(function(btn){
+    btn.addEventListener('click',function(){
+      if(btn.classList.contains('on'))return;
+      document.querySelectorAll('.bm-btn').forEach(function(b){b.classList.remove('on');});
+      btn.classList.add('on');
+      ['__hl','__hf'].concat(Object.keys(lc).reverse()).forEach(function(id){try{if(map.getLayer(id))map.removeLayer(id);}catch(e){}});
+      try{if(map.getSource('s'))map.removeSource('s');}catch(e){}
+      map.setStyle(BM[btn.dataset.s]);
+      var onR=function(){if(!map.isStyleLoaded())return;map.off('styledata',onR);rebuildL();};
+      map.on('styledata',onR);
+    });
+  });
+}
+function addZoom(){
+  var panel=document.getElementById('panel'),pct=document.getElementById('zp'),STEP=0.1,MIN=0.6,MAX=1.6;
+  var scale=parseFloat(localStorage.getItem('cv-scale')||'1');
+  function apply(){panel.style.transform=scale===1?'':('scale('+scale+')');pct.textContent=Math.round(scale*100)+'%';localStorage.setItem('cv-scale',scale);}
+  apply();
+  document.getElementById('zi').onclick=function(){scale=Math.min(MAX,parseFloat((scale+STEP).toFixed(1)));apply();};
+  document.getElementById('zo').onclick=function(){scale=Math.max(MIN,parseFloat((scale-STEP).toFixed(1)));apply();};
+}
+<\/script>
+</body></html>`;
 }
 </script>
 </body>
