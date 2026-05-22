@@ -1,0 +1,39 @@
+{
+  "slug": "test-save-1",
+  "title": "test-save-1",
+  "geojson_url": "/data/comuna5_composicion.geojson",
+  "center": [
+    -58.42,
+    -34.61
+  ],
+  "zoom": 12,
+  "bearing": 0,
+  "pitch": 0,
+  "layers": [
+    {
+      "id": "l1",
+      "label": "Poronga",
+      "type": "fill",
+      "field": "gid",
+      "colors": [
+        "#24536F",
+        "#2F80B3",
+        "#009FFF",
+        "#5BCDD9",
+        "#00F2FF"
+      ],
+      "stops": [
+        119,
+        181,
+        243,
+        305,
+        367
+      ],
+      "opacity": 0.6,
+      "active": true,
+      "showLegend": true,
+      "legendLabel": "leyenda"
+    }
+  ],
+  "updated_at": "2026-05-22T17:39:59.840Z"
+}
