@@ -146,6 +146,7 @@
       onkeydown="if(event.key==='Enter')connect()">
     <button class="btn full" onclick="connect()">ACCEDER</button>
     <div id="conn-err"></div>
+    <a href="/" style="display:block;text-align:center;margin-top:16px;font-size:10px;letter-spacing:2px;opacity:.35;color:var(--cyan);text-decoration:none">← INICIO</a>
   </div>
 </div>
 
@@ -157,7 +158,8 @@
   <div class="layout">
     <div id="sidebar">
       <div class="sb-head">
-        <span class="sb-title">CENTURIA EDITOR</span>
+        <a href="/" style="font-size:10px;letter-spacing:2px;opacity:.45;color:var(--cyan);text-decoration:none;flex-shrink:0">← INICIO</a>
+        <span class="sb-title" style="flex:1;text-align:center">EDITOR</span>
         <button class="btn sm" onclick="disconnect()">SALIR →</button>
       </div>
       <div class="tabs">

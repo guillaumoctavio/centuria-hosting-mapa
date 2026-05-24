@@ -49,47 +49,42 @@
         .dash-header-left p  { font-size: 0.65rem; letter-spacing: 4px; color: var(--cyan); opacity: 0.7; font-weight: 100; }
         .dash-header-right   { font-size: 0.5rem; letter-spacing: 3px; opacity: 0.35; }
 
-        .dash-grid {
-            width: 100%; max-width: 1120px;
-            display: grid; grid-template-columns: repeat(3, 1fr);
-            gap: 18px; align-items: start;
+        .dash-btn.primary {
+            background: rgba(0,242,255,0.08); border: 1px solid rgba(0,242,255,0.5);
+            color: var(--cyan); font-weight: 800; font-size: 0.7rem; padding: 13px 22px;
+            letter-spacing: 3px; cursor: pointer; font-family: inherit; transition: 0.2s;
+        }
+        .dash-btn.primary:hover { background: var(--cyan); color: #000; box-shadow: 0 0 24px rgba(0,242,255,.4); }
+
+        /* ── Map cards grid ── */
+        #maps-content { width: 100%; max-width: 1120px; }
+
+        .folder-section { margin-bottom: 32px; }
+        .folder-label {
+            font-size: 0.5rem; letter-spacing: 4px; color: var(--cyan); opacity: 0.5;
+            font-weight: 800; margin-bottom: 12px; padding-bottom: 8px;
+            border-bottom: 1px solid rgba(0,242,255,0.12);
         }
 
-        .dash-col {
-            background: rgba(0,8,16,0.88);
-            border: 1px solid rgba(0,229,255,0.28);
-            backdrop-filter: blur(24px);
-            display: flex; flex-direction: column; gap: 0;
+        .cards-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+            gap: 12px;
         }
 
-        .dash-col-head {
-            padding: 22px 24px 18px;
-            border-bottom: 1px solid rgba(0,242,255,0.1);
-            display: flex; align-items: center; gap: 14px;
+        .map-card {
+            background: rgba(0,8,16,0.88); border: 1px solid rgba(0,229,255,0.2);
+            backdrop-filter: blur(20px); padding: 20px 22px;
+            cursor: pointer; transition: 0.2s;
+            display: flex; flex-direction: column; gap: 6px;
         }
-        .dash-col-icon { font-size: 1.3rem; opacity: 0.85; }
-        .dash-col-head h2 { font-size: 0.8rem; letter-spacing: 4px; font-weight: 800; color: #fff; }
+        .map-card:hover { border-color: var(--cyan); background: rgba(0,20,30,0.95); }
+        .map-card-title { font-size: 0.75rem; font-weight: 800; color: #fff; letter-spacing: 2px; line-height: 1.3; }
+        .map-card-desc  { font-size: 0.5rem; opacity: 0.5; letter-spacing: 1px; line-height: 1.5; font-weight: 100; }
+        .map-card-slug  { font-size: 0.44rem; color: var(--cyan); opacity: 0.4; margin-top: 6px; letter-spacing: 1px; }
 
-        .dash-sec {
-            padding: 18px 24px;
-            border-bottom: 1px solid rgba(0,242,255,0.07);
-            display: flex; flex-direction: column; gap: 7px;
-        }
-        .dash-sec:last-child { border-bottom: none; }
-        .dash-sec-lbl { font-size: 0.46rem; letter-spacing: 3px; color: var(--cyan); opacity: 0.55; font-weight: 800; margin-bottom: 4px; }
-
-        .dash-btn {
-            background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1);
-            color: rgba(255,255,255,0.85); text-align: left; padding: 12px 14px;
-            font-size: 0.65rem; letter-spacing: 1.5px; cursor: pointer;
-            font-family: inherit; transition: 0.2s; font-weight: 400; width: 100%;
-        }
-        .dash-btn:hover { background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.3); color: #fff; font-weight: 700; }
-        .dash-btn.primary { background: rgba(0,242,255,0.08); border-color: rgba(0,242,255,0.5); color: var(--cyan); font-weight: 800; font-size: 0.7rem; padding: 14px; text-align: center; letter-spacing: 3px; }
-        .dash-btn.primary:hover { background: var(--cyan); color: #000; }
-
-        #saved-maps-list { display: flex; flex-direction: column; gap: 6px; }
-        .saved-empty { font-size: 0.58rem; opacity: 0.35; letter-spacing: 2px; padding: 4px 0; }
+        .empty-state { font-size: 0.58rem; opacity: 0.3; letter-spacing: 3px; padding: 40px 0; text-align: center; }
+        .loading-state { font-size: 0.5rem; opacity: 0.35; letter-spacing: 3px; padding: 20px 0; }
 
         @keyframes rotateCW { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
         @keyframes rotateCCW { from { transform: rotate(0deg); } to { transform: rotate(-360deg); } }
@@ -336,87 +331,61 @@
             <h1>GEMELO TERRITORIAL — COMUNA 5</h1>
             <p>Representación Virtual del Territorio (RVT)</p>
         </div>
-        <div class="dash-header-right">CENTURIA 2026</div>
+        <div style="display:flex;align-items:center;gap:12px">
+            <div class="dash-header-right">CENTURIA 2026</div>
+            <button class="dash-btn primary" onclick="window.location.href='/editor.html'">✦ EDITOR</button>
+        </div>
     </div>
 
-    <div class="dash-grid">
-
-        <!-- ANÁLISIS DEMOGRÁFICO -->
-        <div class="dash-col">
-            <div class="dash-col-head">
-                <span class="dash-col-icon">👥</span>
-                <h2>ANÁLISIS DEMOGRÁFICO</h2>
-            </div>
-            <div class="dash-sec">
-                <div class="dash-sec-lbl">DENSIDAD POBLACIONAL</div>
-                <button class="dash-btn" onclick="window.open('mapa1.html','_blank')">Densidad por unidad mínima territorial</button>
-            </div>
-            <div class="dash-sec">
-                <div class="dash-sec-lbl">COMPOSICIÓN SOCIAL</div>
-                <button class="dash-btn" onclick="window.open('mapa2.html','_blank')">Distribución por género y grupo etario</button>
-            </div>
-        </div>
-
-        <!-- ANÁLISIS ELECTORAL -->
-        <div class="dash-col">
-            <div class="dash-col-head">
-                <span class="dash-col-icon">🗳</span>
-                <h2>ANÁLISIS ELECTORAL</h2>
-            </div>
-            <div class="dash-sec">
-                <div class="dash-sec-lbl">EL PUENTE ESTRATÉGICO</div>
-                <button class="dash-btn" onclick="window.open('mapa3.html','_blank')">Población vs ciudadanía</button>
-            </div>
-            <div class="dash-sec">
-                <div class="dash-sec-lbl">ELECCIONES 2023</div>
-                <button class="dash-btn" onclick="window.open('mapa4.html','_blank')">PASO</button>
-                <button class="dash-btn" onclick="window.open('mapa5.html','_blank')">Generales</button>
-                <button class="dash-btn" onclick="window.open('mapa6.html','_blank')">Balotaje</button>
-            </div>
-            <div class="dash-sec">
-                <div class="dash-sec-lbl">ELECCIONES 2025</div>
-                <button class="dash-btn" onclick="window.open('mapa7.html','_blank')">Legislativas</button>
-            </div>
-        </div>
-
-        <!-- HERRAMIENTAS -->
-        <div class="dash-col">
-            <div class="dash-col-head">
-                <span class="dash-col-icon">⚙</span>
-                <h2>HERRAMIENTAS</h2>
-            </div>
-            <div class="dash-sec">
-                <div class="dash-sec-lbl">EDITOR</div>
-                <button class="dash-btn primary" onclick="window.open('editor.html','_blank')">✦ CREAR / EDITAR MAPAS</button>
-            </div>
-            <div class="dash-sec">
-                <div class="dash-sec-lbl">MAPAS GUARDADOS</div>
-                <div id="saved-maps-list"><div class="saved-empty">CARGANDO...</div></div>
-            </div>
-        </div>
-
+    <div id="maps-content">
+        <div class="loading-state">CARGANDO VISUALIZACIONES...</div>
     </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script>
-    async function loadSavedMaps() {
-        const el = document.getElementById('saved-maps-list');
-        try {
-            const res = await fetch('/maps/index.json?t=' + Date.now());
-            if (!res.ok) throw new Error();
-            const maps = await res.json();
-            if (!maps.length) {
-                el.innerHTML = '<div class="saved-empty">SIN MAPAS GUARDADOS AÚN</div>';
-                return;
-            }
-            el.innerHTML = maps.map(m =>
-                '<button class="dash-btn" onclick="window.open(\'/v/' + m.slug + '\',\'_blank\')">' + m.title + '</button>'
-            ).join('');
-        } catch {
-            el.innerHTML = '<div class="saved-empty">SIN MAPAS GUARDADOS</div>';
-        }
-    }
+    const _SB_URL = 'https://vxjghffwcwpdmzmgcsxy.supabase.co';
+    const _SB_KEY = 'sb_publishable_EeQWniC1tIbys06Cr6Gztg_3Mm-_-OT';
+    const { createClient } = supabase;
+    const _sb = createClient(_SB_URL, _SB_KEY);
 
+    async function loadSavedMaps() {
+        const el = document.getElementById('maps-content');
+        const { data, error } = await _sb
+            .from('maps')
+            .select('slug, title, description, config')
+            .order('updated_at', { ascending: false });
+
+        if (error || !data || !data.length) {
+            el.innerHTML = '<div class="empty-state">AÚN NO HAY VISUALIZACIONES GUARDADAS<br><span style="opacity:.5;font-size:.45rem">Usá el editor para crear la primera</span></div>';
+            return;
+        }
+
+        // Group by folder
+        const groups = {};
+        data.forEach(m => {
+            const key = m.config?.folder || '';
+            if (!groups[key]) groups[key] = [];
+            groups[key].push(m);
+        });
+
+        const sortedKeys = Object.keys(groups).sort((a, b) => {
+            if (!a) return -1; if (!b) return 1; return a.localeCompare(b);
+        });
+
+        el.innerHTML = sortedKeys.map(folder => {
+            const cards = groups[folder].map(m => `
+                <div class="map-card" onclick="window.location.href='/v/${m.slug}'">
+                    <div class="map-card-title">${m.title}</div>
+                    ${m.description ? `<div class="map-card-desc">${m.description}</div>` : ''}
+                    <div class="map-card-slug">/v/${m.slug}</div>
+                </div>`).join('');
+            const label = folder
+                ? `<div class="folder-label">⌂ ${folder}</div>`
+                : `<div class="folder-label">VISUALIZACIONES</div>`;
+            return `<div class="folder-section">${label}<div class="cards-grid">${cards}</div></div>`;
+        }).join('');
+    }
 </script>
 </body>
 </html>
