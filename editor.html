@@ -7,6 +7,7 @@
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700;800&display=swap" rel="stylesheet">
   <link href="https://unpkg.com/maplibre-gl@4/dist/maplibre-gl.css" rel="stylesheet">
   <script src="https://unpkg.com/maplibre-gl@4/dist/maplibre-gl.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
   <style>
     :root{--bg:#000103;--cyan:#00f2ff;--dim:rgba(0,242,255,0.15);--panel:rgba(0,1,3,0.97);}
     *{margin:0;padding:0;box-sizing:border-box;}
@@ -105,6 +106,16 @@
     .mitem-slug{font-size:10px;opacity:.45;}
     .empty{padding:30px 18px;text-align:center;font-size:11px;opacity:.4;letter-spacing:2px;}
 
+    /* ── Folder headers ── */
+    .folder-hd{display:flex;align-items:center;gap:7px;padding:8px 18px;cursor:pointer;background:rgba(0,242,255,.04);border-bottom:1px solid var(--dim);user-select:none;}
+    .folder-hd:hover{background:rgba(0,242,255,.08);}
+    .folder-arrow{font-size:9px;opacity:.5;width:10px;flex-shrink:0;}
+    .folder-icon{font-size:11px;opacity:.6;}
+    .folder-name{font-size:11px;letter-spacing:2px;color:var(--cyan);font-weight:700;flex:1;}
+    .folder-count{font-size:10px;opacity:.4;font-weight:700;}
+    .folder-body{border-bottom:1px solid var(--dim);}
+    .folder-body .mitem{padding-left:30px;}
+
     /* ── URL box ── */
     .url-box{background:rgba(0,242,255,.06);border:1px solid var(--dim);padding:9px;font-size:10px;color:var(--cyan);word-break:break-all;cursor:pointer;transition:.2s;margin-top:8px;display:none;}
     .url-box:hover{border-color:var(--cyan);}
@@ -127,16 +138,14 @@
   <div class="conn-box">
     <div class="conn-title">CENTURIA</div>
     <div class="conn-sub">EDITOR — ACCESO INTERNO</div>
-    <div class="conn-hint">
-      Necesitás un GitHub Personal Access Token con permiso de escritura en el repositorio.<br>
-      <a href="https://github.com/settings/tokens?type=beta" target="_blank">→ Crear token (Fine-grained → Contents: Read &amp; Write)</a>
-    </div>
-    <label class="lbl">GITHUB TOKEN</label>
-    <input class="inp" id="pat-input" type="password" placeholder="github_pat_..." style="margin-bottom:18px"
+    <label class="lbl">EMAIL</label>
+    <input class="inp" id="inp-email" type="email" placeholder="usuario@empresa.com" style="margin-bottom:14px"
+      onkeydown="if(event.key==='Enter')document.getElementById('inp-pass').focus()">
+    <label class="lbl">CONTRASEÑA</label>
+    <input class="inp" id="inp-pass" type="password" placeholder="••••••••" style="margin-bottom:18px"
       onkeydown="if(event.key==='Enter')connect()">
-    <button class="btn full" onclick="connect()">CONECTAR</button>
+    <button class="btn full" onclick="connect()">ACCEDER</button>
     <div id="conn-err"></div>
-    <div style="margin-top:14px;font-size:10px;opacity:.35;letter-spacing:.5px">Se guarda solo en tu navegador, nunca sale de acá.</div>
   </div>
 </div>
 
@@ -161,6 +170,15 @@
         <div class="sec">
           <label class="lbl">TÍTULO</label>
           <input class="inp" id="f-title" placeholder="Ej: Densidad Poblacional" oninput="autoSlug()">
+        </div>
+        <div class="sec">
+          <label class="lbl">CARPETA</label>
+          <input class="inp" id="f-folder" placeholder="Ej: elecciones / elecciones/2023" list="folder-list" autocomplete="off">
+          <datalist id="folder-list"></datalist>
+        </div>
+        <div class="sec">
+          <label class="lbl">DESCRIPCIÓN</label>
+          <textarea class="inp" id="f-desc" placeholder="Ej: Densidad de población por radio censal, INDEC 2022" rows="2" style="resize:vertical;line-height:1.5"></textarea>
         </div>
         <div class="sec">
           <label class="lbl">SLUG (URL pública)</label>
@@ -242,9 +260,10 @@
 
 <script>
 // ══ CONFIG ════════════════════════════════════════════════════════════════
-const REPO   = 'guillaumoctavio/centuria-hosting-mapa';
-const BRANCH = 'main';
-const GH_API = 'https://api.github.com';
+const SUPABASE_URL = 'https://vxjghffwcwpdmzmgcsxy.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_EeQWniC1tIbys06Cr6Gztg_3Mm-_-OT';
+const { createClient } = supabase;
+const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
 // ═════════════════════════════════════════════════════════════════════════
 
 const PALETTES = [
@@ -258,86 +277,42 @@ const PALETTES = [
   {n:'Cian-Mag', c:['#00F2FF','#6699CC','#CC66AA','#EE33CC','#FF00FF']},
 ];
 
-let pat = null, previewMap = null;
+let previewMap = null;
 let geoData = null, geoStoredPath = null, geoNewFile = null;
-let numFields = [], mapSha = null, mapSlug = null;
+let numFields = [], mapSlug = null;
 let layerSeq = 0;
 const layers = [];
 
 // ── INIT ──────────────────────────────────────────────────────────────────
-window.addEventListener('DOMContentLoaded', () => {
-  const saved = localStorage.getItem('centuria-gh-pat');
-  if (saved) { pat = saved; initApp(); }
+window.addEventListener('DOMContentLoaded', async () => {
+  const { data: { session } } = await sb.auth.getSession();
+  if (session) initApp();
   initDrop();
 });
 
 // ── AUTH ──────────────────────────────────────────────────────────────────
 async function connect() {
-  const token = document.getElementById('pat-input').value.trim();
+  const email = document.getElementById('inp-email').value.trim();
+  const pass  = document.getElementById('inp-pass').value;
   const errEl = document.getElementById('conn-err');
   errEl.style.display = 'none';
-  if (!token) return;
-  st('VERIFICANDO TOKEN...');
-  try {
-    const res = await fetch(`${GH_API}/repos/${REPO}`, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
-    if (!res.ok) throw new Error(`HTTP ${res.status} — verificá permisos del token`);
-    pat = token;
-    localStorage.setItem('centuria-gh-pat', pat);
-    initApp();
-  } catch(e) {
-    errEl.textContent = '✗ ' + e.message;
+  if (!email || !pass) return;
+  st('VERIFICANDO...');
+  const { error } = await sb.auth.signInWithPassword({ email, password: pass });
+  if (error) {
+    errEl.textContent = '✗ ' + error.message;
     errEl.style.display = 'block';
+    st('ERROR');
+    return;
   }
+  initApp();
 }
 
-function disconnect() {
-  localStorage.removeItem('centuria-gh-pat');
+async function disconnect() {
+  await sb.auth.signOut();
   location.reload();
 }
 
-// ── GITHUB API ────────────────────────────────────────────────────────────
-async function ghGet(path) {
-  const res = await fetch(`${GH_API}/repos/${REPO}/contents${path}?ref=${BRANCH}`, {
-    headers: { Authorization: `Bearer ${pat}`, Accept: 'application/vnd.github.v3+json' }
-  });
-  if (!res.ok) {
-    const e = await res.json().catch(()=>({}));
-    throw new Error(e.message || `GitHub ${res.status}`);
-  }
-  return res.json();
-}
-
-async function ghPut(path, content, message, sha = null) {
-  // Encode UTF-8 content to base64
-  const encoded = btoa(unescape(encodeURIComponent(content)));
-  const body = { message, branch: BRANCH, content: encoded };
-  if (sha) body.sha = sha;
-  const res = await fetch(`${GH_API}/repos/${REPO}/contents${path}`, {
-    method: 'PUT',
-    headers: { Authorization: `Bearer ${pat}`, Accept: 'application/vnd.github.v3+json', 'Content-Type': 'application/json' },
-    body: JSON.stringify(body)
-  });
-  if (!res.ok) {
-    const e = await res.json().catch(()=>({}));
-    throw new Error(e.message || `GitHub ${res.status}`);
-  }
-  return res.json();
-}
-
-async function ghDelete(path, message, sha) {
-  const res = await fetch(`${GH_API}/repos/${REPO}/contents${path}`, {
-    method: 'DELETE',
-    headers: { Authorization: `Bearer ${pat}`, Accept: 'application/vnd.github.v3+json', 'Content-Type': 'application/json' },
-    body: JSON.stringify({ message, branch: BRANCH, sha })
-  });
-  if (!res.ok) {
-    const e = await res.json().catch(()=>({}));
-    throw new Error(e.message || `GitHub ${res.status}`);
-  }
-  return res.json();
-}
 
 // ── APP INIT ──────────────────────────────────────────────────────────────
 function initApp() {
@@ -389,28 +364,28 @@ function refreshPreview() {
 
 // ── DATA FILES ────────────────────────────────────────────────────────────
 async function loadDataFiles() {
+  const sel = document.getElementById('data-sel');
   try {
-    const files = await ghGet('/data');
-    const sel = document.getElementById('data-sel');
-    const geojsons = Array.isArray(files) ? files.filter(f=>f.name.endsWith('.geojson')) : [];
-    sel.innerHTML = geojsons.length
-      ? geojsons.map(f=>`<option value="${f.path}">${f.name}</option>`).join('')
+    const res = await fetch('/data/index.json');
+    const names = await res.json();
+    sel.innerHTML = names.length
+      ? names.map(n=>`<option value="${n}">${n}</option>`).join('')
       : '<option>No hay archivos en /data/</option>';
   } catch(e) {
-    document.getElementById('data-sel').innerHTML = '<option>Error listando /data/</option>';
+    sel.innerHTML = '<option>Error listando /data/</option>';
     showErr('Error listando /data/: ' + e.message);
   }
 }
 
 async function loadFromRepo() {
-  const path = document.getElementById('data-sel').value;
-  if (!path || path.startsWith('No') || path.startsWith('Error')) return;
-  st('CARGANDO DATOS DEL REPO...');
+  const name = document.getElementById('data-sel').value;
+  if (!name || name.startsWith('No') || name.startsWith('Error')) return;
+  st('CARGANDO DATOS...');
   try {
-    const fileData = await ghGet('/' + path);
-    const text = decodeURIComponent(escape(atob(fileData.content.replace(/\n/g,''))));
-    geoData = JSON.parse(text);
-    geoStoredPath = '/' + path;
+    const res = await fetch('/data/' + name);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    geoData = await res.json();
+    geoStoredPath = '/data/' + name;
     geoNewFile = null;
     onGeoLoaded();
   } catch(e) { showErr('Error cargando GeoJSON: ' + e.message); st('ERROR'); }
@@ -619,49 +594,44 @@ async function saveMap() {
   if (!geoData)        { showErr('Cargá un GeoJSON antes de guardar.'); return; }
   st('GUARDANDO...');
   try {
-    // Reset sha if slug changed (new file)
-    if (slug !== mapSlug) mapSha = null;
-
-    // 1. Upload GeoJSON if it's a new local file
+    // 1. Upload GeoJSON if new local file → Supabase Storage
     let geojsonPath = geoStoredPath;
     if (geoNewFile) {
-      const fname = `/data/${slug}.geojson`;
-      let existSha = null;
-      try { const ex = await ghGet(fname); existSha = ex.sha; } catch{}
-      const text = await geoNewFile.text();
-      await ghPut(fname, text, `data: ${slug}.geojson`, existSha);
-      geojsonPath = fname;
+      const { error: upErr } = await sb.storage.from('geodata').upload(`${slug}.geojson`, geoNewFile, {
+        contentType: 'application/geo+json', upsert: true
+      });
+      if (upErr) throw upErr;
+      geojsonPath = sb.storage.from('geodata').getPublicUrl(`${slug}.geojson`).data.publicUrl;
     }
 
-    // 2. Build config
+    // 2. Build row
     const c = previewMap.getCenter();
-    const config = {
-      slug, title,
+    const description = document.getElementById('f-desc').value.trim();
+    const folder = document.getElementById('f-folder').value.trim().replace(/\/+$/, '');
+    const row = {
+      slug, title, description,
       geojson_url: geojsonPath,
-      center:  [+c.lng.toFixed(5), +c.lat.toFixed(5)],
-      zoom:    +previewMap.getZoom().toFixed(3),
-      bearing: +previewMap.getBearing().toFixed(1),
-      pitch:   +previewMap.getPitch().toFixed(1),
-      layers: layers.map(l => ({
-        id:l.id, label:l.label, type:l.type, field:l.field,
-        colors:l.colors, stops:l.stops, opacity:l.opacity, active:l.active,
-        showLegend: l.showLegend !== false,
-        legendLabel: l.legendLabel || ''
-      })),
-      updated_at: new Date().toISOString()
+      config: {
+        folder,
+        center:  [+c.lng.toFixed(5), +c.lat.toFixed(5)],
+        zoom:    +previewMap.getZoom().toFixed(3),
+        bearing: +previewMap.getBearing().toFixed(1),
+        pitch:   +previewMap.getPitch().toFixed(1),
+        layers: layers.map(l => ({
+          id:l.id, label:l.label, type:l.type, field:l.field,
+          colors:l.colors, stops:l.stops, opacity:l.opacity, active:l.active,
+          showLegend: l.showLegend !== false,
+          legendLabel: l.legendLabel || ''
+        }))
+      }
     };
 
-    // 3. Write /maps/[slug].json
-    const res = await ghPut(`/maps/${slug}.json`,
-      JSON.stringify(config, null, 2),
-      `${mapSha ? 'update':'add'} map: ${slug}`,
-      mapSha
-    );
-    mapSha  = res.content.sha;
+    // 3. Upsert to Supabase
+    const { error } = await sb.from('maps').upsert(row, { onConflict: 'slug' });
+    if (error) throw error;
     mapSlug = slug;
 
-    await updateMapsIndex(slug, title, 'upsert');
-    showOk(`✓ Guardado. Vercel redeploya en ~30s.\nURL: ${window.location.origin}/v/${slug}`);
+    showOk(`✓ Guardado.\nURL: ${window.location.origin}/v/${slug}`);
     st('GUARDADO ✓');
     showUrl(slug);
     document.getElementById('btn-ver').style.display = '';
@@ -674,11 +644,11 @@ async function saveMap() {
 }
 
 async function deleteMap() {
-  if (!mapSha || !mapSlug || !confirm('¿Eliminar este mapa permanentemente?')) return;
+  if (!mapSlug || !confirm('¿Eliminar este mapa permanentemente?')) return;
   st('ELIMINANDO...');
   try {
-    await ghDelete(`/maps/${mapSlug}.json`, `delete map: ${mapSlug}`, mapSha);
-    await updateMapsIndex(mapSlug, '', 'delete');
+    const { error } = await sb.from('maps').delete().eq('slug', mapSlug);
+    if (error) throw error;
     newMap(); loadMapsList(); st('ELIMINADO');
   } catch(e) { showErr('Error al eliminar: ' + e.message); }
 }
@@ -686,18 +656,41 @@ async function deleteMap() {
 // ── MAP LIST ──────────────────────────────────────────────────────────────
 async function loadMapsList() {
   const el = document.getElementById('maps-list');
-  try {
-    const files = await ghGet('/maps');
-    const jsonFiles = Array.isArray(files) ? files.filter(f=>f.name.endsWith('.json')) : [];
-    if (!jsonFiles.length) { el.innerHTML='<div class="empty">NO HAY MAPAS GUARDADOS</div>'; return; }
-    const configs = await Promise.all(jsonFiles.map(async f => {
-      try {
-        const d = await ghGet('/'+f.path);
-        const cfg = JSON.parse(decodeURIComponent(escape(atob(d.content.replace(/\n/g,'')))));
-        return { slug:cfg.slug, title:cfg.title, sha:f.sha };
-      } catch { return { slug:f.name.replace('.json',''), title:f.name.replace('.json',''), sha:f.sha }; }
-    }));
-    el.innerHTML = configs.map(m=>`
+  el.innerHTML = '<div class="empty">CARGANDO...</div>';
+  const { data, error } = await sb.from('maps')
+    .select('slug, title, config')
+    .order('updated_at', { ascending: false });
+  if (error || !data) { el.innerHTML='<div class="empty">NO HAY MAPAS AÚN</div>'; return; }
+  if (!data.length)   { el.innerHTML='<div class="empty">NO HAY MAPAS GUARDADOS</div>'; return; }
+  const list = data.map(m => ({ slug: m.slug, title: m.title, folder: m.config?.folder || '' }));
+  populateFolderList(list);
+  el.innerHTML = renderGroupedList(list);
+}
+
+function renderGroupedList(list) {
+  // Group by folder (empty folder = raíz)
+  const groups = {};
+  list.forEach(m => {
+    const key = m.folder || '';
+    if (!groups[key]) groups[key] = [];
+    groups[key].push(m);
+  });
+
+  const sortedKeys = Object.keys(groups).sort((a,b)=>{
+    if (!a) return -1; if (!b) return 1; return a.localeCompare(b);
+  });
+
+  return sortedKeys.map(folder => {
+    const header = folder
+      ? `<div class="folder-hd" onclick="toggleFolder(this)">`
+        + `<span class="folder-arrow">▶</span>`
+        + `<span class="folder-icon">⌂</span>`
+        + `<span class="folder-name">${folder}</span>`
+        + `<span class="folder-count">${groups[folder].length}</span>`
+        + `</div>`
+        + `<div class="folder-body">`
+      : '';
+    const items = groups[folder].map(m=>`
       <div class="mitem${m.slug===mapSlug?' cur':''}" onclick="loadMapBySlug('${m.slug}')">
         <div class="mitem-dot"></div>
         <div>
@@ -705,17 +698,37 @@ async function loadMapsList() {
           <div class="mitem-slug">/v/${m.slug}</div>
         </div>
       </div>`).join('');
-  } catch { el.innerHTML='<div class="empty">NO HAY MAPAS AÚN</div>'; }
+    return folder ? header + items + '</div>' : items;
+  }).join('');
+}
+
+function toggleFolder(hd) {
+  const body = hd.nextElementSibling;
+  const arrow = hd.querySelector('.folder-arrow');
+  const open = body.style.display !== 'none';
+  body.style.display = open ? 'none' : 'block';
+  arrow.textContent = open ? '▶' : '▼';
+}
+
+function populateFolderList(list) {
+  const folders = [...new Set(list.map(m=>m.folder).filter(Boolean))].sort();
+  const dl = document.getElementById('folder-list');
+  if (dl) dl.innerHTML = folders.map(f=>`<option value="${f}">`).join('');
 }
 
 async function loadMapBySlug(slug) {
   st('CARGANDO...');
   try {
-    const fileData = await ghGet(`/maps/${slug}.json`);
-    const config   = JSON.parse(decodeURIComponent(escape(atob(fileData.content.replace(/\n/g,'')))));
-    mapSha = fileData.sha; mapSlug = slug;
-    document.getElementById('f-title').value = config.title;
-    document.getElementById('f-slug').value  = config.slug;
+    const { data: row, error } = await sb.from('maps').select('*').eq('slug', slug).single();
+    if (error) throw error;
+    // Normalize: merge top-level columns with config JSONB
+    const config = { ...row.config, slug: row.slug, title: row.title, description: row.description || '', geojson_url: row.geojson_url };
+    mapSlug = slug;
+
+    document.getElementById('f-title').value  = config.title;
+    document.getElementById('f-folder').value = config.folder || '';
+    document.getElementById('f-desc').value   = config.description;
+    document.getElementById('f-slug').value   = config.slug;
 
     const geoRes = await fetch(config.geojson_url);
     if (!geoRes.ok) throw new Error('No se pudo cargar el GeoJSON del mapa');
@@ -760,8 +773,8 @@ function switchSrc(type) {
 }
 
 function newMap() {
-  mapSha=null; mapSlug=null; geoData=null; geoStoredPath=null; geoNewFile=null; numFields=[]; layers.length=0; layerSeq=0;
-  ['f-title','f-slug','f-ext-url'].forEach(id=>document.getElementById(id).value='');
+  mapSlug=null; geoData=null; geoStoredPath=null; geoNewFile=null; numFields=[]; layers.length=0; layerSeq=0;
+  ['f-title','f-folder','f-desc','f-slug','f-ext-url'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('drop-name').textContent='';
   ['url-box','btn-ver','btn-del'].forEach(id=>document.getElementById(id).style.display='none');
   ['sec-layers','sec-vp'].forEach(id=>document.getElementById(id).style.display='none');
@@ -814,25 +827,6 @@ function showOk(msg) {
   t._timer = setTimeout(() => t.style.display='none', 4000);
 }
 
-// ── MAPS INDEX (para el menú principal) ───────────────────────────────────
-async function updateMapsIndex(slug, title, action) {
-  let sha = null, list = [];
-  try {
-    const d = await ghGet('/maps/index.json');
-    sha = d.sha;
-    list = JSON.parse(decodeURIComponent(escape(atob(d.content.replace(/\n/g,'')))));
-  } catch {}
-  if (action === 'upsert') {
-    const idx = list.findIndex(m => m.slug === slug);
-    const entry = { slug, title, updated_at: new Date().toISOString() };
-    if (idx >= 0) list[idx] = entry; else list.unshift(entry);
-  } else {
-    list = list.filter(m => m.slug !== slug);
-  }
-  try {
-    await ghPut('/maps/index.json', JSON.stringify(list, null, 2), `index: ${action} ${slug}`, sha);
-  } catch(e) { console.warn('index.json update failed:', e.message); }
-}
 
 // ── EXPORT STANDALONE HTML ────────────────────────────────────────────────
 function exportHtml() {
