@@ -352,15 +352,24 @@ function refreshPreview() {
     try { if(previewMap.getSource('p')) previewMap.removeSource('p'); } catch{}
     previewMap.addSource('p', { type:'geojson', data: geoData });
     layers.forEach(l => {
-      if (!l.field || !l.stops?.length) return;
-      const ce = ['interpolate',['linear'],['get',l.field], ...l.stops.flatMap((v,i) => [v, l.colors[i]])];
-      const is3d = l.type === 'fill-extrusion';
-      previewMap.addLayer({ id:l.id, type:l.type, source:'p',
+      if (!l.field) return;
+      const isMatch = l.type === 'fill-match';
+      const is3d    = l.type === 'fill-extrusion';
+      const glType  = isMatch ? 'fill' : l.type;
+      let colorExpr;
+      if (isMatch) {
+        const args = Object.entries(l.matchColors||{}).flatMap(([v,c])=>[v,c]);
+        colorExpr = ['match',['get',l.field],...args,l.defaultColor||'#888'];
+      } else {
+        if (!l.stops?.length) return;
+        colorExpr = ['interpolate',['linear'],['get',l.field],...l.stops.flatMap((v,i)=>[v,l.colors[i]])];
+      }
+      previewMap.addLayer({ id:l.id, type:glType, source:'p',
         paint: is3d ? {
-          'fill-extrusion-color':ce, 'fill-extrusion-opacity':l.opacity,
-          'fill-extrusion-height':['interpolate',['linear'],['get',l.field],l.stops[0],20,l.stops[4],400],
+          'fill-extrusion-color':colorExpr, 'fill-extrusion-opacity':l.opacity,
+          'fill-extrusion-height':['interpolate',['linear'],['get',l.field],l.stops[0],20,l.stops[l.stops.length-1],400],
           'fill-extrusion-base':0
-        } : { 'fill-color':ce, 'fill-opacity':l.opacity }
+        } : { 'fill-color':colorExpr, 'fill-opacity':l.opacity }
       });
       if (!l.active) previewMap.setLayoutProperty(l.id,'visibility','none');
     });

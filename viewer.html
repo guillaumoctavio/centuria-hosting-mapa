@@ -241,23 +241,35 @@ function setupLayers() {
     map.addSource('src', { type:'geojson', data: geojson });
   }
   (config.layers || []).forEach(l => {
-    const is3d = l.type === 'fill-extrusion';
+    const is3d    = l.type === 'fill-extrusion';
+    const isMatch = l.type === 'fill-match';
+    const glType  = isMatch ? 'fill' : l.type;
+
     __lc[l.id] = {
       opK:  is3d ? 'fill-extrusion-opacity' : 'fill-opacity',
       colK: is3d ? 'fill-extrusion-color'   : 'fill-color',
-      field: l.field, stops: l.stops, colors: [...l.colors], op: l.opacity
+      field: l.field, stops: l.stops || [], colors: [...(l.colors||[])], op: l.opacity,
+      isMatch
     };
     __ld[l.id] = {
-      type: l.type,
+      type: glType,
       extra: is3d ? {
-        'fill-extrusion-height': ['interpolate',['linear'],['get',l.field],l.stops[0],20,l.stops[4],400],
+        'fill-extrusion-height': ['interpolate',['linear'],['get',l.field],l.stops[0],20,l.stops[l.stops.length-1],400],
         'fill-extrusion-base': 0
       } : {}
     };
-    const ce = ['interpolate',['linear'],['get',l.field],...l.stops.flatMap((v,i)=>[v,l.colors[i]])];
-    const paint = { [__lc[l.id].opK]: l.opacity, [__lc[l.id].colK]: ce };
+
+    let colorExpr;
+    if (isMatch) {
+      const args = Object.entries(l.matchColors||{}).flatMap(([v,c])=>[v,c]);
+      colorExpr = ['match',['get',l.field],...args, l.defaultColor||'#888'];
+    } else {
+      colorExpr = ['interpolate',['linear'],['get',l.field],...l.stops.flatMap((v,i)=>[v,l.colors[i]])];
+    }
+
+    const paint = { [__lc[l.id].opK]: l.opacity, [__lc[l.id].colK]: colorExpr };
     Object.assign(paint, __ld[l.id].extra);
-    map.addLayer({ id:l.id, type:l.type, source:'src', paint, layout:{ visibility: l.active?'visible':'none' } });
+    map.addLayer({ id:l.id, type:glType, source:'src', paint, layout:{ visibility: l.active?'visible':'none' } });
   });
   // Highlight layers
   map.addLayer({ id:'__hl-fill', type:'fill', source:'src',
