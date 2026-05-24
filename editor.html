@@ -112,9 +112,14 @@
     .folder-arrow{font-size:9px;opacity:.5;width:10px;flex-shrink:0;}
     .folder-icon{font-size:11px;opacity:.6;}
     .folder-name{font-size:11px;letter-spacing:2px;color:var(--cyan);font-weight:700;flex:1;}
-    .folder-count{font-size:10px;opacity:.4;font-weight:700;}
+    .folder-count{font-size:10px;opacity:.4;font-weight:700;margin-right:4px;}
     .folder-body{border-bottom:1px solid var(--dim);}
     .folder-body .mitem{padding-left:30px;}
+    .folder-act{background:none;border:none;color:var(--cyan);opacity:.35;cursor:pointer;font-size:11px;padding:2px 5px;font-family:inherit;line-height:1;flex-shrink:0;}
+    .folder-act:hover{opacity:1;}
+    .folder-act.danger:hover{color:#ff7070;opacity:1;}
+    .mitem-move{background:none;border:none;color:var(--cyan);opacity:.25;cursor:pointer;font-size:12px;padding:4px 6px;flex-shrink:0;font-family:inherit;}
+    .mitem-move:hover{opacity:.9;}
 
     /* ── URL box ── */
     .url-box{background:rgba(0,242,255,.06);border:1px solid var(--dim);padding:9px;font-size:10px;color:var(--cyan);word-break:break-all;cursor:pointer;transition:.2s;margin-top:8px;display:none;}
@@ -670,7 +675,6 @@ async function loadMapsList() {
 }
 
 function renderGroupedList(list) {
-  // Group by folder (empty folder = raíz)
   const groups = {};
   list.forEach(m => {
     const key = m.folder || '';
@@ -683,22 +687,26 @@ function renderGroupedList(list) {
   });
 
   return sortedKeys.map(folder => {
+    const esc = folder.replace(/'/g,"\\'");
     const header = folder
       ? `<div class="folder-hd" onclick="toggleFolder(this)">`
         + `<span class="folder-arrow">▶</span>`
         + `<span class="folder-icon">⌂</span>`
         + `<span class="folder-name">${folder}</span>`
         + `<span class="folder-count">${groups[folder].length}</span>`
+        + `<button class="folder-act" onclick="event.stopPropagation();renameFolder('${esc}')" title="Renombrar carpeta">✎</button>`
+        + `<button class="folder-act danger" onclick="event.stopPropagation();deleteFolder('${esc}')" title="Eliminar carpeta">✕</button>`
         + `</div>`
         + `<div class="folder-body">`
       : '';
     const items = groups[folder].map(m=>`
       <div class="mitem${m.slug===mapSlug?' cur':''}" onclick="loadMapBySlug('${m.slug}')">
         <div class="mitem-dot"></div>
-        <div>
+        <div style="flex:1;min-width:0">
           <div class="mitem-title">${m.title}</div>
           <div class="mitem-slug">/v/${m.slug}</div>
         </div>
+        <button class="mitem-move" onclick="event.stopPropagation();quickMoveMap('${m.slug}','${(m.folder||'').replace(/'/g,"\\'")}',this)" title="Mover a carpeta">↦</button>
       </div>`).join('');
     return folder ? header + items + '</div>' : items;
   }).join('');
@@ -716,6 +724,57 @@ function populateFolderList(list) {
   const folders = [...new Set(list.map(m=>m.folder).filter(Boolean))].sort();
   const dl = document.getElementById('folder-list');
   if (dl) dl.innerHTML = folders.map(f=>`<option value="${f}">`).join('');
+}
+
+// ── FOLDER MANAGEMENT ────────────────────────────────────────────────────
+async function quickMoveMap(slug, currentFolder, btn) {
+  const newFolder = prompt('Mover a carpeta (vacío = raíz):', currentFolder);
+  if (newFolder === null) return;
+  const clean = newFolder.trim().replace(/\/+$/, '');
+  if (clean === currentFolder) return;
+  btn.textContent = '…';
+  try {
+    const { data: row, error: selErr } = await sb.from('maps').select('config').eq('slug', slug).single();
+    if (selErr) throw selErr;
+    const { error } = await sb.from('maps').update({ config: { ...row.config, folder: clean } }).eq('slug', slug);
+    if (error) throw error;
+    if (mapSlug === slug) document.getElementById('f-folder').value = clean;
+    st('MOVIDO ✓'); loadMapsList();
+  } catch(e) { showErr('Error: ' + e.message); btn.textContent = '↦'; }
+}
+
+async function renameFolder(oldName) {
+  const newName = prompt('Nuevo nombre de carpeta:', oldName);
+  if (!newName || newName.trim() === oldName) return;
+  const clean = newName.trim().replace(/\/+$/, '');
+  st('RENOMBRANDO...');
+  try {
+    const { data: rows, error: selErr } = await sb.from('maps').select('slug, config').eq('config->>folder', oldName);
+    if (selErr) throw selErr;
+    await Promise.all(rows.map(r =>
+      sb.from('maps').update({ config: { ...r.config, folder: clean } }).eq('slug', r.slug)
+    ));
+    if (mapSlug) {
+      const cur = document.getElementById('f-folder').value;
+      if (cur === oldName) document.getElementById('f-folder').value = clean;
+    }
+    st('RENOMBRADO ✓'); loadMapsList();
+  } catch(e) { showErr('Error: ' + e.message); st('ERROR'); }
+}
+
+async function deleteFolder(name) {
+  if (!confirm(`¿Eliminar carpeta "${name}"?\nLos mapas se moverán a la raíz.`)) return;
+  st('ELIMINANDO CARPETA...');
+  try {
+    const { data: rows, error: selErr } = await sb.from('maps').select('slug, config').eq('config->>folder', name);
+    if (selErr) throw selErr;
+    await Promise.all(rows.map(r =>
+      sb.from('maps').update({ config: { ...r.config, folder: '' } }).eq('slug', r.slug)
+    ));
+    if (document.getElementById('f-folder').value === name)
+      document.getElementById('f-folder').value = '';
+    st('CARPETA ELIMINADA ✓'); loadMapsList();
+  } catch(e) { showErr('Error: ' + e.message); st('ERROR'); }
 }
 
 async function loadMapBySlug(slug) {
