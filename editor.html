@@ -97,6 +97,11 @@
     .op-row{display:flex;align-items:center;gap:8px;}
     .op-val{font-size:11px;color:#fff;min-width:32px;text-align:right;font-weight:700;}
 
+    /* ── Preview basemap ── */
+    .pbm-btn{background:rgba(0,242,255,.04);border:1px solid rgba(0,242,255,.2);color:rgba(255,255,255,.6);font-size:10px;letter-spacing:2px;padding:8px 4px;cursor:pointer;font-family:inherit;transition:.2s;font-weight:700;}
+    .pbm-btn:hover{background:rgba(0,242,255,.1);color:#fff;}
+    .pbm-btn.on{background:rgba(0,242,255,.15);border-color:var(--cyan);color:#fff;}
+
     /* ── Map list ── */
     .mitem{display:flex;align-items:center;padding:11px 18px;border-bottom:1px solid var(--dim);cursor:pointer;transition:.15s;gap:10px;}
     .mitem:hover{background:rgba(0,242,255,.05);}
@@ -236,7 +241,14 @@
         <div class="sec" id="sec-vp" style="display:none">
           <label class="lbl">VIEWPORT</label>
           <div style="font-size:10px;opacity:.6;margin-bottom:5px">Navegá el mapa. La vista se guarda al guardar.</div>
-          <div id="vp-info"></div>
+          <div id="vp-info" style="margin-bottom:10px"></div>
+          <label class="lbl">MAPA BASE</label>
+          <div id="pbm-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:4px">
+            <button class="pbm-btn on" onclick="switchPreviewBase('dark',this)">OSCURO</button>
+            <button class="pbm-btn" onclick="switchPreviewBase('voyager',this)">GPS</button>
+            <button class="pbm-btn" onclick="switchPreviewBase('light',this)">BLANCO</button>
+            <button class="pbm-btn" onclick="switchPreviewBase('satellite',this)">SATÉLITE</button>
+          </div>
         </div>
 
         <!-- Actions -->
@@ -343,6 +355,20 @@ function initPreviewMap() {
     document.getElementById('vp-info').textContent =
       `lng ${c.lng.toFixed(4)}  lat ${c.lat.toFixed(4)}  zoom ${previewMap.getZoom().toFixed(1)}  bearing ${previewMap.getBearing().toFixed(0)}°  pitch ${previewMap.getPitch().toFixed(0)}°`;
   });
+}
+
+const PREVIEW_BASES = {
+  dark:      'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
+  voyager:   'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json',
+  light:     'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json',
+  satellite: {version:8,sources:{sat:{type:'raster',tiles:['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'],tileSize:256,attribution:'© Esri'}},layers:[{id:'sat',type:'raster',source:'sat'}]}
+};
+
+function switchPreviewBase(key, btn) {
+  document.querySelectorAll('#pbm-grid .pbm-btn').forEach(b => b.classList.remove('on'));
+  btn.classList.add('on');
+  previewMap.setStyle(PREVIEW_BASES[key]);
+  refreshPreview();
 }
 
 function refreshPreview() {
