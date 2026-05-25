@@ -1022,7 +1022,7 @@ function rebuildL(){
 function visL(){return Object.keys(lc).filter(function(id){if(!map.getLayer(id))return false;return map.getLayoutProperty(id,'visibility')==='visible';});}
 function buildP(){
   var html='<div class="sec"><div class="sec-lbl">CAPAS</div>';
-  CFG.layers.forEach(function(l){html+='<label class="lrow" data-lid="'+l.id+'"><input type="checkbox"'+(l.active?' checked':'')+' /><span class="sw" style="background:linear-gradient(to right,'+l.colors.join(',')+')" /><span class="ln">'+l.label+'</span></label>';});
+  CFG.layers.forEach(function(l){var sw=l.type==='fill-match'?Object.values(l.matchColors||{}).join(','):(l.colors||['#888']).join(',');html+='<label class="lrow" data-lid="'+l.id+'"><input type="checkbox"'+(l.active?' checked':'')+' /><span class="sw" style="background:linear-gradient(to right,'+sw+')" /><span class="ln">'+l.label+'</span></label>';});
   html+='</div>';
   document.getElementById('lp').innerHTML=html;
   document.querySelectorAll('[data-lid] input').forEach(function(cb){cb.addEventListener('change',function(){var lid=cb.closest('[data-lid]').dataset.lid;if(!map.getLayer(lid))return;map.setLayoutProperty(lid,'visibility',cb.checked?'visible':'none');buildLeg();});});

@@ -45,6 +45,9 @@
     .legend-bar{height:8px;border-radius:3px;margin-bottom:3px;}
     .legend-vals{display:flex;justify-content:space-between;}
     .legend-val{font-size:10px;opacity:.55;}
+    .legend-cats{display:flex;flex-direction:column;gap:4px;}
+    .legend-cat{display:flex;align-items:center;gap:6px;font-size:10px;opacity:.8;}
+    .legend-cat-dot{width:10px;height:10px;border-radius:2px;flex-shrink:0;}
 
     .bm-grid{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-top:4px;}
     .bm-btn{background:rgba(0,242,255,.04);border:1px solid rgba(0,242,255,.18);color:rgba(255,255,255,.6);font-size:9px;letter-spacing:2px;padding:9px 4px;cursor:pointer;font-family:inherit;transition:.2s;text-align:center;}
@@ -310,7 +313,7 @@ function buildPanel() {
   const layersHtml = (config.layers||[]).map(l=>`
     <label class="layer-row" data-lid="${l.id}" style="padding:5px 0">
       <input type="checkbox" ${l.active?'checked':''}>
-      <span class="swatch" style="background:linear-gradient(to right,${l.colors.join(',')})"></span>
+      <span class="swatch" style="background:linear-gradient(to right,${l.type==='fill-match'?Object.values(l.matchColors||{}).join(','):(l.colors||['#888']).join(',')})"></span>
       <span class="lname">${l.label}</span>
     </label>`).join('');
   document.getElementById('layers-panel').innerHTML =
@@ -421,16 +424,21 @@ function buildLegend() {
   if (!visLayers.length) { sec.style.display='none'; return; }
   sec.style.display = 'block';
   content.innerHTML = visLayers.map(l => {
-    const label  = l.legendLabel || l.label;
+    const label = l.legendLabel || l.label;
+    if (l.type === 'fill-match') {
+      const cats = Object.entries(l.matchColors||{})
+        .map(([k,c])=>`<div class="legend-cat"><span class="legend-cat-dot" style="background:${c}"></span>${k}</div>`)
+        .join('');
+      return `<div class="legend-item"><div class="legend-lbl">${label}</div><div class="legend-cats">${cats}</div></div>`;
+    }
     const stops  = l.stops || [];
     const colors = l.colors || [];
     const min    = stops[0]   != null ? fmtVal(stops[0])   : '';
     const mid    = stops[2]   != null ? fmtVal(stops[2])   : '';
     const max    = stops[stops.length-1] != null ? fmtVal(stops[stops.length-1]) : '';
-    const grad   = colors.join(',');
     return `<div class="legend-item">
       <div class="legend-lbl">${label}</div>
-      <div class="legend-bar" style="background:linear-gradient(to right,${grad})"></div>
+      <div class="legend-bar" style="background:linear-gradient(to right,${colors.join(',')})"></div>
       <div class="legend-vals">
         <span class="legend-val">${min}</span>
         <span class="legend-val">${mid}</span>
