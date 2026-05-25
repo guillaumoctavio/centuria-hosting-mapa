@@ -367,8 +367,39 @@ const PREVIEW_BASES = {
 function switchPreviewBase(key, btn) {
   document.querySelectorAll('#pbm-grid .pbm-btn').forEach(b => b.classList.remove('on'));
   btn.classList.add('on');
-  previewMap.setStyle(PREVIEW_BASES[key]);
-  refreshPreview();
+  if (!geoData) { previewMap.setStyle(PREVIEW_BASES[key]); return; }
+  previewMap.setStyle(PREVIEW_BASES[key], {
+    diff: false,
+    transformStyle: (_prev, next) => {
+      const custom = [];
+      layers.forEach(l => {
+        if (!l.field) return;
+        const isMatch = l.type === 'fill-match';
+        const is3d    = l.type === 'fill-extrusion';
+        const glType  = isMatch ? 'fill' : l.type;
+        let colorExpr;
+        if (isMatch) {
+          const args = Object.entries(l.matchColors||{}).flatMap(([v,c])=>[v,c]);
+          colorExpr = ['match',['get',l.field],...args,l.defaultColor||'#888'];
+        } else {
+          if (!l.stops?.length) return;
+          colorExpr = ['interpolate',['linear'],['get',l.field],...l.stops.flatMap((v,i)=>[v,l.colors[i]])];
+        }
+        const paint = is3d
+          ? { 'fill-extrusion-color':colorExpr, 'fill-extrusion-opacity':l.opacity,
+              'fill-extrusion-height':['interpolate',['linear'],['get',l.field],l.stops[0],20,l.stops[l.stops.length-1],400],
+              'fill-extrusion-base':0 }
+          : { 'fill-color':colorExpr, 'fill-opacity':l.opacity };
+        custom.push({ id:l.id, type:glType, source:'p',
+          layout:{ visibility: l.active ? 'visible' : 'none' }, paint });
+      });
+      return {
+        ...next,
+        sources: { ...next.sources, p:{ type:'geojson', data:geoData } },
+        layers: [...next.layers, ...custom]
+      };
+    }
+  });
 }
 
 function refreshPreview() {
