@@ -390,17 +390,18 @@ function setupBasemaps() {
       if(btn.classList.contains('on')) return;
       document.querySelectorAll('.bm-btn').forEach(b=>b.classList.remove('on'));
       btn.classList.add('on');
-      ['__hl-line','__hl-fill',...Object.keys(__lc).reverse()].forEach(id=>{
-        try { if(map.getLayer(id)) map.removeLayer(id); } catch{}
+      const customIds = new Set(['__hl-fill','__hl-line',...Object.keys(__lc)]);
+      map.setStyle(BASEMAPS[btn.dataset.style], {
+        diff: false,
+        transformStyle: (prev, next) => ({
+          ...next,
+          sources: { ...next.sources, src: { type:'geojson', data:geojson } },
+          layers: [
+            ...next.layers,
+            ...(prev ? prev.layers.filter(l => customIds.has(l.id)) : [])
+          ]
+        })
       });
-      try { if(map.getSource('src')) map.removeSource('src'); } catch{}
-      map.setStyle(BASEMAPS[btn.dataset.style]);
-      const onStyleData = () => {
-        if (!map.isStyleLoaded()) return;
-        map.off('styledata', onStyleData);
-        rebuildLayers();
-      };
-      map.on('styledata', onStyleData);
     });
   });
 }
