@@ -390,17 +390,47 @@ function setupBasemaps() {
       if(btn.classList.contains('on')) return;
       document.querySelectorAll('.bm-btn').forEach(b=>b.classList.remove('on'));
       btn.classList.add('on');
-      const customIds = new Set(['__hl-fill','__hl-line',...Object.keys(__lc)]);
+      // Snapshot state before style wipe
+      const vis = {};
+      Object.keys(__lc).forEach(id => {
+        try { vis[id] = map.getLayoutProperty(id,'visibility'); } catch{ vis[id]='visible'; }
+      });
+      const hlFilter = _selId !== null
+        ? ['==',['get','ID_Territorio'],_selId]
+        : ['==',['get','ID_Territorio'],-1];
       map.setStyle(BASEMAPS[btn.dataset.style], {
         diff: false,
-        transformStyle: (prev, next) => ({
-          ...next,
-          sources: { ...next.sources, src: { type:'geojson', data:geojson } },
-          layers: [
-            ...next.layers,
-            ...(prev ? prev.layers.filter(l => customIds.has(l.id)) : [])
-          ]
-        })
+        transformStyle: (_prev, next) => {
+          const custom = [];
+          (config.layers||[]).forEach(l => {
+            const isMatch = l.type==='fill-match', is3d = l.type==='fill-extrusion';
+            const glType = isMatch ? 'fill' : l.type;
+            const opK = is3d ? 'fill-extrusion-opacity' : 'fill-opacity';
+            const colK = is3d ? 'fill-extrusion-color' : 'fill-color';
+            let ce;
+            if (isMatch) {
+              const args = Object.entries(l.matchColors||{}).flatMap(([v,c])=>[v,c]);
+              ce = ['match',['get',l.field],...args, l.defaultColor||'#888'];
+            } else {
+              ce = ['interpolate',['linear'],['get',l.field],
+                    ...(l.stops||[]).flatMap((v,i)=>[v,(l.colors||[])[i]])];
+            }
+            const paint = { [opK]:l.opacity, [colK]:ce };
+            if (is3d) Object.assign(paint, {
+              'fill-extrusion-height': ['interpolate',['linear'],['get',l.field],l.stops[0],20,l.stops[l.stops.length-1],400],
+              'fill-extrusion-base': 0
+            });
+            custom.push({ id:l.id, type:glType, source:'src', paint,
+              layout:{ visibility: vis[l.id] ?? (l.active?'visible':'none') } });
+          });
+          custom.push({ id:'__hl-fill', type:'fill', source:'src', filter:hlFilter,
+            paint:{'fill-color':'#ffffff','fill-opacity':0.18} });
+          custom.push({ id:'__hl-line', type:'line', source:'src', filter:hlFilter,
+            paint:{'line-color':'#00f2ff','line-width':3,'line-opacity':1} });
+          return { ...next,
+            sources: { ...next.sources, src:{ type:'geojson', data:geojson } },
+            layers: [...next.layers, ...custom] };
+        }
       });
     });
   });

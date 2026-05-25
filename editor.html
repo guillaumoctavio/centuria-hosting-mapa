@@ -1070,15 +1070,31 @@ function addBM(){
       if(btn.classList.contains('on'))return;
       document.querySelectorAll('.bm-btn').forEach(function(b){b.classList.remove('on');});
       btn.classList.add('on');
-      var customIds=new Set(['__hf','__hl'].concat(Object.keys(lc)));
+      var vis={};
+      Object.keys(lc).forEach(function(id){try{vis[id]=map.getLayoutProperty(id,'visibility');}catch(e){vis[id]='visible';}});
       map.setStyle(BM[btn.dataset.s],{
         diff:false,
-        transformStyle:function(prev,next){
-          var cl=prev?prev.layers.filter(function(l){return customIds.has(l.id);}):[];
-          return Object.assign({},next,{
-            sources:Object.assign({},next.sources,{s:{type:'geojson',data:GEO}}),
-            layers:next.layers.concat(cl)
+        transformStyle:function(_prev,next){
+          var custom=[];
+          CFG.layers.forEach(function(l){
+            var isMatch=l.type==='fill-match',is3=l.type==='fill-extrusion';
+            var glType=isMatch?'fill':l.type;
+            var opK=is3?'fill-extrusion-opacity':'fill-opacity';
+            var colK=is3?'fill-extrusion-color':'fill-color';
+            var ce;
+            if(isMatch){
+              var args=Object.entries(l.matchColors||{}).reduce(function(a,kv){return a.concat([kv[0],kv[1]]);},[]);
+              ce=['match',['get',l.field]].concat(args).concat([l.defaultColor||'#888']);
+            }else{
+              ce=['interpolate',['linear'],['get',l.field]].concat((l.stops||[]).reduce(function(a,v,i){return a.concat([v,(l.colors||[])[i]]);},[]));
+            }
+            var p={};p[opK]=l.opacity;p[colK]=ce;
+            if(is3)Object.assign(p,{'fill-extrusion-height':['interpolate',['linear'],['get',l.field],l.stops[0],20,l.stops[l.stops.length-1],400],'fill-extrusion-base':0});
+            custom.push({id:l.id,type:glType,source:'s',paint:p,layout:{visibility:vis[l.id]||(l.active?'visible':'none')}});
           });
+          custom.push({id:'__hf',type:'fill',source:'s',filter:['==',['get','ID_Territorio'],-1],paint:{'fill-color':'#ffffff','fill-opacity':0.18}});
+          custom.push({id:'__hl',type:'line',source:'s',filter:['==',['get','ID_Territorio'],-1],paint:{'line-color':'#00f2ff','line-width':3,'line-opacity':1}});
+          return Object.assign({},next,{sources:Object.assign({},next.sources,{s:{type:'geojson',data:GEO}}),layers:next.layers.concat(custom)});
         }
       });
     });
