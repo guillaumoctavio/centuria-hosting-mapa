@@ -390,8 +390,7 @@ function setupBasemaps() {
       });
       try { if(map.getSource('src')) map.removeSource('src'); } catch{}
       map.setStyle(BASEMAPS[btn.dataset.style]);
-      const onReady=()=>{ if(!map.isStyleLoaded()) return; map.off('styledata',onReady); rebuildLayers(); };
-      map.on('styledata',onReady);
+      map.once('style.load', () => rebuildLayers());
     });
   });
 }

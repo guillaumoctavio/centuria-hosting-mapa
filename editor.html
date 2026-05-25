@@ -992,12 +992,22 @@ map.on('load',function(){addL();buildP();addTT();addClick();addBM();addZoom();bu
 function addL(){
   if(!map.getSource('s'))map.addSource('s',{type:'geojson',data:GEO});
   CFG.layers.forEach(function(l){
+    var isMatch=l.type==='fill-match';
     var is3=l.type==='fill-extrusion';
-    lc[l.id]={opK:is3?'fill-extrusion-opacity':'fill-opacity',colK:is3?'fill-extrusion-color':'fill-color',field:l.field,stops:l.stops,colors:l.colors.slice(),op:l.opacity};
-    ld[l.id]={type:l.type,extra:is3?{'fill-extrusion-height':['interpolate',['linear'],['get',l.field],l.stops[0],20,l.stops[l.stops.length-1],400],'fill-extrusion-base':0}:{}};
-    var ce=['interpolate',['linear'],['get',l.field]].concat(l.stops.reduce(function(a,v,i){return a.concat([v,l.colors[i]]);},[]));
-    var p={};p[lc[l.id].opK]=l.opacity;p[lc[l.id].colK]=ce;Object.assign(p,ld[l.id].extra);
-    map.addLayer({id:l.id,type:l.type,source:'s',paint:p,layout:{visibility:l.active?'visible':'none'}});
+    var glType=isMatch?'fill':l.type;
+    var opK=is3?'fill-extrusion-opacity':'fill-opacity';
+    var colK=is3?'fill-extrusion-color':'fill-color';
+    lc[l.id]={opK:opK,colK:colK,field:l.field,stops:l.stops||[],colors:(l.colors||[]).slice(),op:l.opacity,isMatch:isMatch};
+    ld[l.id]={type:glType,extra:is3?{'fill-extrusion-height':['interpolate',['linear'],['get',l.field],l.stops[0],20,l.stops[l.stops.length-1],400],'fill-extrusion-base':0}:{}};
+    var ce;
+    if(isMatch){
+      var args=Object.entries(l.matchColors||{}).reduce(function(a,kv){return a.concat([kv[0],kv[1]]);},[]);
+      ce=['match',['get',l.field]].concat(args).concat([l.defaultColor||'#888']);
+    }else{
+      ce=['interpolate',['linear'],['get',l.field]].concat((l.stops||[]).reduce(function(a,v,i){return a.concat([v,l.colors[i]]);},[]));
+    }
+    var p={};p[opK]=l.opacity;p[colK]=ce;Object.assign(p,ld[l.id].extra);
+    map.addLayer({id:l.id,type:glType,source:'s',paint:p,layout:{visibility:l.active?'visible':'none'}});
   });
   map.addLayer({id:'__hf',type:'fill',source:'s',filter:['==',['get','ID_Territorio'],-1],paint:{'fill-color':'#ffffff','fill-opacity':0.18}});
   map.addLayer({id:'__hl',type:'line',source:'s',filter:['==',['get','ID_Territorio'],-1],paint:{'line-color':'#00f2ff','line-width':3,'line-opacity':1}});
@@ -1063,8 +1073,7 @@ function addBM(){
       ['__hl','__hf'].concat(Object.keys(lc).reverse()).forEach(function(id){try{if(map.getLayer(id))map.removeLayer(id);}catch(e){}});
       try{if(map.getSource('s'))map.removeSource('s');}catch(e){}
       map.setStyle(BM[btn.dataset.s]);
-      var onR=function(){if(!map.isStyleLoaded())return;map.off('styledata',onR);rebuildL();};
-      map.on('styledata',onR);
+      map.once('style.load',function(){rebuildL();});
     });
   });
 }
