@@ -530,11 +530,19 @@ function updateLayer(id, key, val) {
   if (key==='label') { const el=document.querySelector(`#card-${id} .lname-el`); if(el) el.textContent=val; }
 }
 
+function updateColor(id, idx, color) {
+  const l = layers.find(l=>l.id===id);
+  if (!l) return;
+  l.colors[idx] = color;
+  const prev = document.getElementById(`stops-prev-${id}`);
+  if (prev) prev.style.background = `linear-gradient(to right,${l.colors.join(',')})`;
+  refreshPreview();
+}
+
 function updateStop(id, idx, val) {
   const l = layers.find(l=>l.id===id);
   if (!l) return;
   l.stops[idx] = parseFloat(val) || 0;
-  // Update gradient preview
   const prev = document.getElementById(`stops-prev-${id}`);
   if (prev) prev.style.background = `linear-gradient(to right,${l.colors.join(',')})`;
   refreshPreview();
@@ -590,8 +598,11 @@ function renderLayers() {
             onchange="updateStop('${l.id}',${si},this.value)" title="Stop ${si+1}">
         `).join('')}
       </div>
-      <div style="display:flex;justify-content:space-between;margin-bottom:12px">
-        ${(l.colors||[]).map(c=>`<span style="width:${100/(l.colors||[]).length}%;height:4px;background:${c};display:inline-block"></span>`).join('')}
+      <div style="display:flex;gap:2px;margin-bottom:12px">
+        ${(l.colors||[]).map((c,ci)=>`
+          <input type="color" value="${c}" title="Color ${ci+1}"
+            oninput="updateColor('${l.id}',${ci},this.value)"
+            style="flex:1;height:22px;border:none;padding:0;cursor:pointer;background:none;min-width:0">`).join('')}
       </div>`;
     return `
     <div class="lcard" id="card-${l.id}">
