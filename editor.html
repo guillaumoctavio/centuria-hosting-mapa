@@ -1025,7 +1025,7 @@ function buildP(){
   CFG.layers.forEach(function(l){html+='<label class="lrow" data-lid="'+l.id+'"><input type="checkbox"'+(l.active?' checked':'')+' /><span class="sw" style="background:linear-gradient(to right,'+l.colors.join(',')+')" /><span class="ln">'+l.label+'</span></label>';});
   html+='</div>';
   document.getElementById('lp').innerHTML=html;
-  document.querySelectorAll('[data-lid] input').forEach(function(cb){cb.addEventListener('change',function(){var lid=cb.closest('[data-lid]').dataset.lid;map.setLayoutProperty(lid,'visibility',cb.checked?'visible':'none');buildLeg();});});
+  document.querySelectorAll('[data-lid] input').forEach(function(cb){cb.addEventListener('change',function(){var lid=cb.closest('[data-lid]').dataset.lid;if(!map.getLayer(lid))return;map.setLayoutProperty(lid,'visibility',cb.checked?'visible':'none');buildLeg();});});
 }
 function addTT(){
   var tt=document.getElementById('tt');
@@ -1057,7 +1057,7 @@ function addClick(){
 }
 function clrH(){var f=['==',['get','ID_Territorio'],-1];if(map.getLayer('__hf'))map.setFilter('__hf',f);if(map.getLayer('__hl'))map.setFilter('__hl',f);}
 function buildLeg(){
-  var vl=CFG.layers.filter(function(l){if(l.showLegend===false)return false;try{return map.getLayoutProperty(l.id,'visibility')==='visible';}catch(e){return l.active;}});
+  var vl=CFG.layers.filter(function(l){if(l.showLegend===false)return false;if(!map.getLayer(l.id))return l.active;return map.getLayoutProperty(l.id,'visibility')==='visible';});
   var ls=document.getElementById('ls'),lct=document.getElementById('lc');
   if(!vl.length){ls.style.display='none';return;}
   ls.style.display='block';

@@ -318,6 +318,7 @@ function buildPanel() {
   document.querySelectorAll('[data-lid] input[type=checkbox]').forEach(cb=>{
     cb.addEventListener('change', ()=>{
       const lid=cb.closest('[data-lid]').dataset.lid;
+      if (!map.getLayer(lid)) return;
       map.setLayoutProperty(lid,'visibility',cb.checked?'visible':'none');
       buildLegend();
     });
