@@ -1073,7 +1073,8 @@ function addBM(){
       ['__hl','__hf'].concat(Object.keys(lc).reverse()).forEach(function(id){try{if(map.getLayer(id))map.removeLayer(id);}catch(e){}});
       try{if(map.getSource('s'))map.removeSource('s');}catch(e){}
       map.setStyle(BM[btn.dataset.s]);
-      map.once('style.load',function(){rebuildL();});
+      var onSD=function(){if(!map.isStyleLoaded())return;map.off('styledata',onSD);rebuildL();};
+      map.on('styledata',onSD);
     });
   });
 }
