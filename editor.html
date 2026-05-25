@@ -286,7 +286,7 @@ const PALETTES = [
 
 let previewMap = null;
 let geoData = null, geoStoredPath = null, geoNewFile = null;
-let numFields = [], mapSlug = null;
+let numFields = [], allFields = [], mapSlug = null;
 let layerSeq = 0;
 const layers = [];
 
@@ -439,8 +439,8 @@ async function loadExtUrl() {
 
 // ── GEO LOADED ────────────────────────────────────────────────────────────
 function onGeoLoaded() {
-  numFields = Object.entries(geoData.features?.[0]?.properties || {})
-    .filter(([,v]) => typeof v==='number' && !isNaN(v)).map(([k]) => k);
+  allFields  = Object.keys(geoData.features?.[0]?.properties || {});
+  numFields  = allFields.filter(k => { const v = geoData.features?.[0]?.properties[k]; return typeof v==='number' && !isNaN(v); });
   st(`✓  ${geoData.features?.length || 0} features · ${numFields.length} campos numéricos`);
   document.getElementById('sec-layers').style.display = 'block';
   document.getElementById('sec-vp').style.display = 'block';
@@ -471,6 +471,31 @@ function fitToGeo() {
 }
 
 // ── LAYERS ────────────────────────────────────────────────────────────────
+function getUniqueValues(field) {
+  const vals = new Set();
+  (geoData?.features || []).forEach(f => {
+    const v = f.properties[field];
+    if (v !== null && v !== undefined) vals.add(String(v));
+  });
+  return [...vals].sort();
+}
+
+function updateMatchColor(id, encodedVal, color) {
+  const l = layers.find(l=>l.id===id);
+  if (!l) return;
+  if (!l.matchColors) l.matchColors = {};
+  l.matchColors[decodeURIComponent(encodedVal)] = color;
+  refreshPreview();
+}
+
+function initMatchColors(l) {
+  const vals = getUniqueValues(l.field);
+  const palette = PALETTES[l.paletteIdx || 0].c;
+  l.matchColors = {};
+  vals.forEach((v, i) => { l.matchColors[v] = palette[i % palette.length]; });
+  l.defaultColor = l.defaultColor || '#888888';
+}
+
 function addLayer() {
   const id = 'l'+(++layerSeq);
   const field = numFields[0] || '';
@@ -494,12 +519,13 @@ function updateLayer(id, key, val) {
   if (!l) return;
   l[key] = val;
   if (key==='paletteIdx') l.colors = [...PALETTES[val].c];
-  // Recalculate stops when field changes
+  if (key==='type' && val==='fill-match' && !l.matchColors && geoData) initMatchColors(l);
   if (key==='field' && geoData) {
-    l.stops = calcStops(geoData, val);
+    if (l.type==='fill-match') { initMatchColors(l); }
+    else { l.stops = calcStops(geoData, val); }
     renderLayers();
   }
-  if (['field','type','paletteIdx','opacity','active','stops'].includes(key)) refreshPreview();
+  if (['field','type','paletteIdx','opacity','active','stops','defaultColor'].includes(key)) refreshPreview();
   if (key==='type'||key==='paletteIdx') renderLayers();
   if (key==='label') { const el=document.querySelector(`#card-${id} .lname-el`); if(el) el.textContent=val; }
 }
@@ -525,7 +551,49 @@ function recalcStops(id) {
 function toggleCard(id) { document.getElementById(`bd-${id}`).classList.toggle('open'); }
 
 function renderLayers() {
-  document.getElementById('layers-list').innerHTML = layers.map((l,i) => `
+  document.getElementById('layers-list').innerHTML = layers.map((l,i) => {
+    const isMatch = l.type === 'fill-match';
+    const fieldOpts = (isMatch ? allFields : numFields)
+      .map(f=>`<option value="${f}"${f===l.field?' selected':''}>${f}</option>`).join('');
+    const colorSection = isMatch ? `
+      <label class="lbl">COLORES POR CATEGORÍA</label>
+      <div style="margin-bottom:12px;max-height:180px;overflow-y:auto;padding-right:2px">
+        ${Object.entries(l.matchColors||{}).map(([v,c])=>`
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:5px">
+            <input type="color" value="${c}"
+              oninput="updateMatchColor('${l.id}','${encodeURIComponent(v)}',this.value)"
+              style="width:28px;height:22px;border:none;padding:0;background:none;cursor:pointer;flex-shrink:0">
+            <span style="font-size:11px;letter-spacing:.5px;opacity:.85;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${v}</span>
+          </div>`).join('')}
+        <div style="display:flex;align-items:center;gap:8px;margin-top:6px;padding-top:6px;border-top:1px solid var(--dim)">
+          <input type="color" value="${l.defaultColor||'#888888'}"
+            oninput="updateLayer('${l.id}','defaultColor',this.value)"
+            style="width:28px;height:22px;border:none;padding:0;background:none;cursor:pointer;flex-shrink:0">
+          <span style="font-size:10px;letter-spacing:2px;opacity:.5">POR DEFECTO</span>
+        </div>
+      </div>` : `
+      <label class="lbl">PALETA DE COLOR</label>
+      <div class="pal-grid" style="margin-bottom:12px">
+        ${PALETTES.map((p,pi)=>`<div class="pal-sw${pi===l.paletteIdx?' on':''}"
+          style="background:linear-gradient(to right,${p.c.join(',')})"
+          onclick="updateLayer('${l.id}','paletteIdx',${pi})" title="${p.n}"></div>`).join('')}
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+        <label class="lbl" style="margin:0">CORTES DE COLOR</label>
+        <button class="btn sm" onclick="recalcStops('${l.id}')">↺ AUTO</button>
+      </div>
+      <div id="stops-prev-${l.id}" class="stops-preview"
+        style="background:linear-gradient(to right,${(l.colors||['#888']).join(',')})"></div>
+      <div class="stops-wrap">
+        ${(l.stops||[0,25,50,75,100]).map((s,si)=>`
+          <input type="number" class="stop-inp" value="${s}" step="any"
+            onchange="updateStop('${l.id}',${si},this.value)" title="Stop ${si+1}">
+        `).join('')}
+      </div>
+      <div style="display:flex;justify-content:space-between;margin-bottom:12px">
+        ${(l.colors||[]).map(c=>`<span style="width:${100/(l.colors||[]).length}%;height:4px;background:${c};display:inline-block"></span>`).join('')}
+      </div>`;
+    return `
     <div class="lcard" id="card-${l.id}">
       <div class="lcard-hd" onclick="toggleCard('${l.id}')">
         <span class="lnum">${i+1}</span>
@@ -533,47 +601,23 @@ function renderLayers() {
         <span class="lcard-arrow">▼</span>
       </div>
       <div class="lcard-bd" id="bd-${l.id}">
-
         <label class="lbl">NOMBRE DE LA CAPA</label>
         <input class="inp" value="${l.label}" style="margin-bottom:12px"
           oninput="updateLayer('${l.id}','label',this.value)">
-
         <label class="lbl">CAMPO A VISUALIZAR</label>
         <select class="sel" style="margin-bottom:12px" onchange="updateLayer('${l.id}','field',this.value)">
-          ${numFields.map(f=>`<option value="${f}"${f===l.field?' selected':''}>${f}</option>`).join('')}
+          ${fieldOpts}
         </select>
-
         <label class="lbl">TIPO DE CAPA</label>
         <div class="row" style="margin-bottom:12px">
           <button class="btn sm" style="${l.type==='fill'?'background:var(--cyan);color:#000':''}"
             onclick="updateLayer('${l.id}','type','fill')">PLANO</button>
           <button class="btn sm" style="${l.type==='fill-extrusion'?'background:var(--cyan);color:#000':''}"
             onclick="updateLayer('${l.id}','type','fill-extrusion')">3D</button>
+          <button class="btn sm" style="${isMatch?'background:var(--cyan);color:#000':''}"
+            onclick="updateLayer('${l.id}','type','fill-match')">CATEGÓRICO</button>
         </div>
-
-        <label class="lbl">PALETA DE COLOR</label>
-        <div class="pal-grid" style="margin-bottom:12px">
-          ${PALETTES.map((p,pi)=>`<div class="pal-sw${pi===l.paletteIdx?' on':''}"
-            style="background:linear-gradient(to right,${p.c.join(',')})"
-            onclick="updateLayer('${l.id}','paletteIdx',${pi})" title="${p.n}"></div>`).join('')}
-        </div>
-
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
-          <label class="lbl" style="margin:0">CORTES DE COLOR</label>
-          <button class="btn sm" onclick="recalcStops('${l.id}')">↺ AUTO</button>
-        </div>
-        <div id="stops-prev-${l.id}" class="stops-preview"
-          style="background:linear-gradient(to right,${l.colors.join(',')})"></div>
-        <div class="stops-wrap">
-          ${(l.stops||[0,25,50,75,100]).map((s,si)=>`
-            <input type="number" class="stop-inp" value="${s}" step="any"
-              onchange="updateStop('${l.id}',${si},this.value)" title="Stop ${si+1}">
-          `).join('')}
-        </div>
-        <div style="display:flex;justify-content:space-between;margin-bottom:12px">
-          ${(l.colors||[]).map((c,ci)=>`<span style="width:${100/l.colors.length}%;height:4px;background:${c};display:inline-block"></span>`).join('')}
-        </div>
-
+        ${colorSection}
         <label class="lbl">OPACIDAD</label>
         <div class="op-row" style="margin-bottom:12px">
           <input type="range" class="op-sl" min="0" max="1" step="0.01" value="${l.opacity}"
@@ -581,7 +625,6 @@ function renderLayers() {
             oninput="updateLayer('${l.id}','opacity',parseFloat(this.value));this.style.setProperty('--p',(this.value*100)+'%');this.nextElementSibling.textContent=parseFloat(this.value).toFixed(2)">
           <span class="op-val">${l.opacity.toFixed(2)}</span>
         </div>
-
         <label class="lbl">LEYENDA</label>
         <label class="ck-row" style="margin-bottom:7px">
           <input type="checkbox" ${l.showLegend?'checked':''}
@@ -590,16 +633,15 @@ function renderLayers() {
         </label>
         <input class="inp" placeholder="Etiqueta (vacío = nombre de capa)" value="${l.legendLabel||''}"
           style="margin-bottom:12px" oninput="updateLayer('${l.id}','legendLabel',this.value)">
-
         <label class="ck-row" style="margin-bottom:12px">
           <input type="checkbox" ${l.active?'checked':''}
             onchange="updateLayer('${l.id}','active',this.checked)">
           VISIBLE POR DEFECTO
         </label>
-
         <button class="btn danger sm" onclick="removeLayer('${l.id}')">ELIMINAR CAPA</button>
       </div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
 }
 
 // ── SAVE / DELETE ─────────────────────────────────────────────────────────
@@ -637,7 +679,8 @@ async function saveMap() {
           id:l.id, label:l.label, type:l.type, field:l.field,
           colors:l.colors, stops:l.stops, opacity:l.opacity, active:l.active,
           showLegend: l.showLegend !== false,
-          legendLabel: l.legendLabel || ''
+          legendLabel: l.legendLabel || '',
+          ...(l.matchColors ? { matchColors:l.matchColors, defaultColor:l.defaultColor||'#888888' } : {})
         }))
       }
     };
@@ -652,7 +695,7 @@ async function saveMap() {
     showUrl(slug);
     document.getElementById('btn-ver').style.display = '';
     document.getElementById('btn-del').style.display = '';
-    loadMapsList();
+    await loadMapsList();
   } catch(e) {
     showErr(`Error al guardar: ${e.message}`);
     st('ERROR AL GUARDAR');
@@ -804,15 +847,17 @@ async function loadMapBySlug(slug) {
     if (!geoRes.ok) throw new Error('No se pudo cargar el GeoJSON del mapa');
     geoData = await geoRes.json();
     geoStoredPath = config.geojson_url; geoNewFile = null;
-    numFields = Object.entries(geoData.features?.[0]?.properties||{})
-      .filter(([,v])=>typeof v==='number'&&!isNaN(v)).map(([k])=>k);
+    allFields = Object.keys(geoData.features?.[0]?.properties||{});
+    numFields = allFields.filter(k => { const v = geoData.features?.[0]?.properties[k]; return typeof v==='number'&&!isNaN(v); });
 
     layers.length = 0; layerSeq = 0;
     (config.layers||[]).forEach((l,i) => {
       layerSeq = Math.max(layerSeq, i+1);
       layers.push({ id:l.id, label:l.label, type:l.type, field:l.field,
-        paletteIdx:0, colors:[...l.colors], stops:[...(l.stops||[])], opacity:l.opacity, active:l.active,
-        showLegend: l.showLegend !== false, legendLabel: l.legendLabel||'' });
+        paletteIdx:0, colors:[...(l.colors||['#888'])], stops:[...(l.stops||[])], opacity:l.opacity, active:l.active,
+        showLegend: l.showLegend !== false, legendLabel: l.legendLabel||'',
+        matchColors: l.matchColors ? {...l.matchColors} : undefined,
+        defaultColor: l.defaultColor || '#888888' });
     });
 
     document.getElementById('sec-layers').style.display = 'block';

@@ -378,6 +378,8 @@ function getBBox(feature) {
   let n=-90,s=90,e=-180,w=180;
   const p=([lng,lat])=>{if(lng<w)w=lng;if(lng>e)e=lng;if(lat<s)s=lat;if(lat>n)n=lat;};
   const g=feature.geometry;
+  if(g.type==='Point') p(g.coordinates);
+  if(g.type==='MultiPoint') g.coordinates.forEach(p);
   if(g.type==='Polygon') g.coordinates.forEach(r=>r.forEach(p));
   if(g.type==='MultiPolygon') g.coordinates.forEach(poly=>poly.forEach(r=>r.forEach(p)));
   return [[w,s],[e,n]];
