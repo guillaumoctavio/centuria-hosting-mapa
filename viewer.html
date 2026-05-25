@@ -300,7 +300,8 @@ function rebuildLayers() {
 
 function visLayers() {
   return Object.keys(__lc).filter(lid=>{
-    try { return map.getLayoutProperty(lid,'visibility')==='visible'; } catch{ return false; }
+    if (!map.getLayer(lid)) return false;
+    return map.getLayoutProperty(lid,'visibility')==='visible';
   });
 }
 
@@ -411,7 +412,8 @@ function setupZoom() {
 function buildLegend() {
   const visLayers = (config.layers||[]).filter(l => {
     if (l.showLegend === false) return false;
-    try { return map.getLayoutProperty(l.id,'visibility')==='visible'; } catch{ return l.active; }
+    if (!map.getLayer(l.id)) return l.active;
+    return map.getLayoutProperty(l.id,'visibility')==='visible';
   });
   const sec = document.getElementById('legend-sec');
   const content = document.getElementById('legend-content');

@@ -1019,7 +1019,7 @@ function rebuildL(){
   document.querySelectorAll('[data-lid] input').forEach(function(cb){var lid=cb.closest('[data-lid]').dataset.lid;if(map.getLayer(lid))map.setLayoutProperty(lid,'visibility',cb.checked?'visible':'none');});
   if(sel!==null){var f=['==',['get','ID_Territorio'],sel];if(map.getLayer('__hf'))map.setFilter('__hf',f);if(map.getLayer('__hl'))map.setFilter('__hl',f);}
 }
-function visL(){return Object.keys(lc).filter(function(id){try{return map.getLayoutProperty(id,'visibility')==='visible';}catch(e){return false;}});}
+function visL(){return Object.keys(lc).filter(function(id){if(!map.getLayer(id))return false;return map.getLayoutProperty(id,'visibility')==='visible';});}
 function buildP(){
   var html='<div class="sec"><div class="sec-lbl">CAPAS</div>';
   CFG.layers.forEach(function(l){html+='<label class="lrow" data-lid="'+l.id+'"><input type="checkbox"'+(l.active?' checked':'')+' /><span class="sw" style="background:linear-gradient(to right,'+l.colors.join(',')+')" /><span class="ln">'+l.label+'</span></label>';});
