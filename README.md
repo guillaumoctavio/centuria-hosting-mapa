@@ -72,6 +72,18 @@ Todos los datos están pre-procesados como GeoJSON estático. Los archivos origi
 
 ---
 
+## Desarrollo local
+
+El proyecto es un sitio **100% estático**, así que alcanza con cualquier servidor HTTP simple (no se puede abrir con `file://` porque los `fetch` a `/data/*.geojson`, `/data/index.json` y el editor requieren un origen HTTP):
+
+```bash
+python3 -m http.server 8123
+```
+
+Luego abrir `http://localhost:8123/index.html`, `http://localhost:8123/editor.html` (requiere login de Supabase — credenciales reales del proyecto) o `http://localhost:8123/viewer.html?slug=<slug>`.
+
+El editor usa las credenciales públicas de Supabase (`SUPABASE_URL`/`SUPABASE_KEY`, ya hardcodeadas en `editor.html`) contra el proyecto real — no hay entorno de staging separado.
+
 ## Deploy en Vercel
 
 El proyecto es un sitio **100% estático** — sin build step, sin dependencias npm.

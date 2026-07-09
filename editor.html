@@ -214,9 +214,9 @@
           </div>
           <div id="src-upload-pane" style="display:none">
             <div class="drop" id="drop-zone">
-              <input type="file" accept=".geojson,.json" onchange="handleFile(this.files[0])">
+              <input type="file" accept=".geojson,.json,.csv" onchange="handleFile(this.files[0])">
               <div class="drop-icon">⬡</div>
-              <div class="drop-text">DROP GEOJSON / CLICK</div>
+              <div class="drop-text">DROP GEOJSON / CSV / CLICK</div>
               <div class="drop-name" id="drop-name"></div>
             </div>
           </div>
@@ -374,9 +374,10 @@ function switchPreviewBase(key, btn) {
       const custom = [];
       layers.forEach(l => {
         if (!l.field) return;
-        const isMatch = l.type === 'fill-match';
-        const is3d    = l.type === 'fill-extrusion';
-        const glType  = isMatch ? 'fill' : l.type;
+        const isMatch  = l.type === 'fill-match';
+        const is3d     = l.type === 'fill-extrusion';
+        const isCircle = l.type === 'circle';
+        const glType   = isMatch ? 'fill' : l.type;
         let colorExpr;
         if (isMatch) {
           const args = Object.entries(l.matchColors||{}).flatMap(([v,c])=>[v,c]);
@@ -389,6 +390,10 @@ function switchPreviewBase(key, btn) {
           ? { 'fill-extrusion-color':colorExpr, 'fill-extrusion-opacity':l.opacity,
               'fill-extrusion-height':['interpolate',['linear'],['get',l.field],l.stops[0],20,l.stops[l.stops.length-1],400],
               'fill-extrusion-base':0 }
+          : isCircle
+          ? { 'circle-color':colorExpr, 'circle-opacity':l.opacity,
+              'circle-radius':['interpolate',['linear'],['get',l.field],l.stops[0],4,l.stops[l.stops.length-1],16],
+              'circle-stroke-width':1, 'circle-stroke-color':'rgba(0,0,0,0.4)' }
           : { 'fill-color':colorExpr, 'fill-opacity':l.opacity };
         custom.push({ id:l.id, type:glType, source:'p',
           layout:{ visibility: l.active ? 'visible' : 'none' }, paint });
@@ -410,9 +415,10 @@ function refreshPreview() {
     previewMap.addSource('p', { type:'geojson', data: geoData });
     layers.forEach(l => {
       if (!l.field) return;
-      const isMatch = l.type === 'fill-match';
-      const is3d    = l.type === 'fill-extrusion';
-      const glType  = isMatch ? 'fill' : l.type;
+      const isMatch  = l.type === 'fill-match';
+      const is3d     = l.type === 'fill-extrusion';
+      const isCircle = l.type === 'circle';
+      const glType   = isMatch ? 'fill' : l.type;
       let colorExpr;
       if (isMatch) {
         const args = Object.entries(l.matchColors||{}).flatMap(([v,c])=>[v,c]);
@@ -426,6 +432,10 @@ function refreshPreview() {
           'fill-extrusion-color':colorExpr, 'fill-extrusion-opacity':l.opacity,
           'fill-extrusion-height':['interpolate',['linear'],['get',l.field],l.stops[0],20,l.stops[l.stops.length-1],400],
           'fill-extrusion-base':0
+        } : isCircle ? {
+          'circle-color':colorExpr, 'circle-opacity':l.opacity,
+          'circle-radius':['interpolate',['linear'],['get',l.field],l.stops[0],4,l.stops[l.stops.length-1],16],
+          'circle-stroke-width':1, 'circle-stroke-color':'rgba(0,0,0,0.4)'
         } : { 'fill-color':colorExpr, 'fill-opacity':l.opacity }
       });
       if (!l.active) previewMap.setLayoutProperty(l.id,'visibility','none');
@@ -476,9 +486,18 @@ async function handleFile(file) {
   if (!file) return;
   st('LEYENDO ARCHIVO...');
   document.getElementById('drop-name').textContent = file.name;
-  geoNewFile = file; geoStoredPath = null;
-  try { geoData = JSON.parse(await file.text()); onGeoLoaded(); }
-  catch { showErr('Archivo inválido: no es un GeoJSON válido.'); st('ERROR'); }
+  geoStoredPath = null;
+  try {
+    const text = await file.text();
+    if (/\.csv$/i.test(file.name)) {
+      geoData = csvToGeoJSON(parseCSV(text));
+      geoNewFile = new File([JSON.stringify(geoData)], file.name.replace(/\.csv$/i, '.geojson'), { type: 'application/geo+json' });
+    } else {
+      geoData = JSON.parse(text);
+      geoNewFile = file;
+    }
+    onGeoLoaded();
+  } catch(e) { showErr('Archivo inválido: ' + (e.message || 'no se pudo procesar.')); st('ERROR'); }
 }
 
 async function loadExtUrl() {
@@ -488,10 +507,139 @@ async function loadExtUrl() {
   try {
     const res = await fetch(url);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    geoData = await res.json();
-    geoStoredPath = url; geoNewFile = null;
+    const isCSV = /\.csv(\?|$)/i.test(url) || (res.headers.get('content-type') || '').includes('csv');
+    if (isCSV) {
+      geoData = csvToGeoJSON(parseCSV(await res.text()));
+      geoNewFile = new File([JSON.stringify(geoData)], 'data.geojson', { type: 'application/geo+json' });
+      geoStoredPath = null;
+    } else {
+      geoData = await res.json();
+      geoStoredPath = url; geoNewFile = null;
+    }
     onGeoLoaded();
-  } catch(e) { showErr('Error cargando URL: ' + e.message); st('ERROR'); }
+  } catch(e) { showErr('Error cargando URL: ' + (e.message || 'no se pudo procesar.')); st('ERROR'); }
+}
+
+// ── CSV → GEOJSON ────────────────────────────────────────────────────────
+function parseCSV(text) {
+  text = text.replace(/^﻿/, '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  const firstLine = text.slice(0, (text.indexOf('\n') + 1 || text.length + 1) - 1);
+  const delim = (firstLine.match(/;/g) || []).length > (firstLine.match(/,/g) || []).length ? ';' : ',';
+  const rows = [];
+  let row = [], field = '', inQuotes = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inQuotes) {
+      if (c === '"') { if (text[i+1] === '"') { field += '"'; i++; } else inQuotes = false; }
+      else field += c;
+    } else if (c === '"') inQuotes = true;
+    else if (c === delim) { row.push(field); field = ''; }
+    else if (c === '\n') { row.push(field); rows.push(row); row = []; field = ''; }
+    else field += c;
+  }
+  if (field !== '' || row.length) { row.push(field); rows.push(row); }
+  const headers = (rows.shift() || []).map(h => h.trim());
+  return rows.filter(r => r.length > 1 || r[0] !== '').map(r => {
+    const obj = {};
+    headers.forEach((h, i) => obj[h] = (r[i] !== undefined ? r[i].trim() : ''));
+    return obj;
+  });
+}
+
+function csvNum(v) {
+  if (v === '' || v == null) return null;
+  let n = Number(v);
+  if (!isNaN(n)) return n;
+  n = Number(String(v).replace(',', '.'));
+  return isNaN(n) ? null : n;
+}
+
+const CSV_LAT_KEYS  = ['lat','latitude','latitud','y'];
+const CSV_LON_KEYS  = ['lon','lng','long','longitude','longitud','x'];
+const CSV_GEOM_KEYS = ['geometria_wkt','geometry_wkt','geom_wkt','wkt','the_geom','geom','geometry'];
+const WKT_RE = /^(point|multipoint|linestring|multilinestring|polygon|multipolygon)\s*[zm]*\s*\(/i;
+
+// Parses "TYPE(...)" WKT (as produced by PostGIS ST_AsText) into a GeoJSON geometry.
+function wktSplitTopLevel(s) {
+  const parts = [];
+  let depth = 0, cur = '';
+  for (const ch of s) {
+    if (ch === '(') depth++;
+    else if (ch === ')') depth--;
+    if (ch === ',' && depth === 0) { parts.push(cur); cur = ''; }
+    else cur += ch;
+  }
+  if (cur.trim() !== '') parts.push(cur);
+  return parts;
+}
+
+function wktParseCoords(s) {
+  s = s.trim();
+  if (s.startsWith('(')) return wktSplitTopLevel(s.slice(1, -1)).map(wktParseCoords);
+  const nums = s.split(/\s+/).map(Number);
+  return [nums[0], nums[1]];
+}
+
+function wktToGeometry(wkt) {
+  const s = wkt.trim().replace(/^SRID=\d+;/i, '');
+  const idx = s.indexOf('(');
+  if (idx === -1) return null;
+  const type = s.slice(0, idx).trim().toUpperCase().replace(/\s*[ZM]+\s*$/, '');
+  const coords = wktParseCoords(s.slice(idx));
+  const unwrapOnce = c => Array.isArray(c[0]) ? c[0] : c;
+  switch (type) {
+    case 'POINT':            return { type: 'Point',            coordinates: unwrapOnce(coords) };
+    case 'LINESTRING':       return { type: 'LineString',        coordinates: coords };
+    case 'POLYGON':          return { type: 'Polygon',           coordinates: coords };
+    case 'MULTIPOINT':       return { type: 'MultiPoint',        coordinates: coords.map(unwrapOnce) };
+    case 'MULTILINESTRING':  return { type: 'MultiLineString',   coordinates: coords };
+    case 'MULTIPOLYGON':     return { type: 'MultiPolygon',      coordinates: coords };
+    default: return null;
+  }
+}
+
+function csvToGeoJSON(records) {
+  if (!records.length) throw new Error('El CSV no tiene filas de datos.');
+  const headers = Object.keys(records[0]);
+  const findKey = keys => headers.find(h => keys.includes(h.trim().toLowerCase()));
+  const geomKey = findKey(CSV_GEOM_KEYS) ||
+    headers.find(h => WKT_RE.test((records[0][h] || '').replace(/^SRID=\d+;/i, '')));
+
+  if (geomKey) {
+    const features = [];
+    for (const rec of records) {
+      const raw = (rec[geomKey] || '').trim();
+      if (!raw) continue;
+      const geometry = wktToGeometry(raw);
+      if (!geometry) continue;
+      const properties = {};
+      for (const h of headers) {
+        if (h === geomKey) continue;
+        const n = csvNum(rec[h]);
+        properties[h] = (n !== null && rec[h] !== '') ? n : rec[h];
+      }
+      features.push({ type: 'Feature', geometry, properties });
+    }
+    if (!features.length) throw new Error('Ninguna fila tiene geometría WKT válida en la columna "' + geomKey + '".');
+    return { type: 'FeatureCollection', features };
+  }
+
+  const latKey = findKey(CSV_LAT_KEYS), lonKey = findKey(CSV_LON_KEYS);
+  if (!latKey || !lonKey) throw new Error('No se encontraron columnas de geometría: ni WKT (geometria_wkt/wkt/geom) ni latitud/longitud (lat/lon, latitude/longitude, x/y).');
+  const features = [];
+  for (const rec of records) {
+    const lat = csvNum(rec[latKey]), lon = csvNum(rec[lonKey]);
+    if (lat == null || lon == null) continue;
+    const properties = {};
+    for (const h of headers) {
+      if (h === latKey || h === lonKey) continue;
+      const n = csvNum(rec[h]);
+      properties[h] = (n !== null && rec[h] !== '') ? n : rec[h];
+    }
+    features.push({ type: 'Feature', geometry: { type: 'Point', coordinates: [lon, lat] }, properties });
+  }
+  if (!features.length) throw new Error('Ninguna fila tiene coordenadas válidas.');
+  return { type: 'FeatureCollection', features };
 }
 
 // ── GEO LOADED ────────────────────────────────────────────────────────────
@@ -510,7 +658,10 @@ function calcStops(gj, field) {
   const vals = (gj.features||[]).map(f=>f.properties[field]).filter(v=>typeof v==='number'&&!isNaN(v)).sort((a,b)=>a-b);
   if (!vals.length) return [0,25,50,75,100];
   const p = pct => vals[Math.max(0,Math.floor(pct*(vals.length-1)))];
-  return [p(0),p(0.25),p(0.5),p(0.75),p(1)].map(v => Math.round(v*100)/100);
+  const stops = [p(0),p(0.25),p(0.5),p(0.75),p(1)].map(v => Math.round(v*100)/100);
+  // maplibre's interpolate expressions require strictly ascending stops; nudge ties forward
+  for (let i = 1; i < stops.length; i++) if (stops[i] <= stops[i-1]) stops[i] = stops[i-1] + 0.01;
+  return stops;
 }
 
 function fitToGeo() {
@@ -522,9 +673,13 @@ function fitToGeo() {
     if(g.type==='Polygon') g.coordinates.forEach(r=>r.forEach(proc));
     else if(g.type==='MultiPolygon') g.coordinates.forEach(p=>p.forEach(r=>r.forEach(proc)));
     else if(g.type==='Point') proc(g.coordinates);
+    else if(g.type==='MultiPoint'||g.type==='LineString') g.coordinates.forEach(proc);
+    else if(g.type==='MultiLineString') g.coordinates.forEach(r=>r.forEach(proc));
   });
   const go = () => previewMap.fitBounds([[w,s],[e,n]],{padding:40});
-  if(previewMap.isStyleLoaded()) go(); else previewMap.once('load',go);
+  // 'load' fires once ever; if the style isn't settled yet (e.g. right after adding a
+  // large source), waiting on it again means this callback never runs. 'idle' refires.
+  if(previewMap.isStyleLoaded()) go(); else previewMap.once('idle',go);
 }
 
 // ── LAYERS ────────────────────────────────────────────────────────────────
@@ -557,7 +712,9 @@ function addLayer() {
   const id = 'l'+(++layerSeq);
   const field = numFields[0] || '';
   const stops = (geoData && field) ? calcStops(geoData, field) : [0,25,50,75,100];
-  layers.push({ id, label:'Capa '+layerSeq, field, type:'fill',
+  const geomType = geoData?.features?.[0]?.geometry?.type || '';
+  const defType = /Point/.test(geomType) ? 'circle' : 'fill';
+  layers.push({ id, label:'Capa '+layerSeq, field, type:defType,
     paletteIdx:0, colors:[...PALETTES[0].c], stops, opacity:0.6, active:true,
     showLegend:true, legendLabel:'' });
   renderLayers();
@@ -685,6 +842,8 @@ function renderLayers() {
             onclick="updateLayer('${l.id}','type','fill-extrusion')">3D</button>
           <button class="btn sm" style="${isMatch?'background:var(--cyan);color:#000':''}"
             onclick="updateLayer('${l.id}','type','fill-match')">CATEGÓRICO</button>
+          <button class="btn sm" style="${l.type==='circle'?'background:var(--cyan);color:#000':''}"
+            onclick="updateLayer('${l.id}','type','circle')">PUNTOS</button>
         </div>
         ${colorSection}
         <label class="lbl">OPACIDAD</label>
@@ -1108,11 +1267,12 @@ function addL(){
   CFG.layers.forEach(function(l){
     var isMatch=l.type==='fill-match';
     var is3=l.type==='fill-extrusion';
+    var isCircle=l.type==='circle';
     var glType=isMatch?'fill':l.type;
-    var opK=is3?'fill-extrusion-opacity':'fill-opacity';
-    var colK=is3?'fill-extrusion-color':'fill-color';
+    var opK=is3?'fill-extrusion-opacity':isCircle?'circle-opacity':'fill-opacity';
+    var colK=is3?'fill-extrusion-color':isCircle?'circle-color':'fill-color';
     lc[l.id]={opK:opK,colK:colK,field:l.field,stops:l.stops||[],colors:(l.colors||[]).slice(),op:l.opacity,isMatch:isMatch};
-    ld[l.id]={type:glType,extra:is3?{'fill-extrusion-height':['interpolate',['linear'],['get',l.field],l.stops[0],20,l.stops[l.stops.length-1],400],'fill-extrusion-base':0}:{}};
+    ld[l.id]={type:glType,extra:is3?{'fill-extrusion-height':['interpolate',['linear'],['get',l.field],l.stops[0],20,l.stops[l.stops.length-1],400],'fill-extrusion-base':0}:isCircle?{'circle-radius':['interpolate',['linear'],['get',l.field],l.stops[0],4,l.stops[l.stops.length-1],16],'circle-stroke-width':1,'circle-stroke-color':'rgba(0,0,0,0.4)'}:{}};
     var ce;
     if(isMatch){
       var args=Object.entries(l.matchColors||{}).reduce(function(a,kv){return a.concat([kv[0],kv[1]]);},[]);
@@ -1166,6 +1326,8 @@ function addClick(){
     function pr(c){if(c[0]<w)w=c[0];if(c[0]>ex)ex=c[0];if(c[1]<s)s=c[1];if(c[1]>n)n=c[1];}
     if(g.type==='Polygon')g.coordinates.forEach(function(r){r.forEach(pr);});
     if(g.type==='MultiPolygon')g.coordinates.forEach(function(p2){p2.forEach(function(r){r.forEach(pr);});});
+    if(g.type==='Point')pr(g.coordinates);
+    if(g.type==='MultiPoint')g.coordinates.forEach(pr);
     map.fitBounds([[w,s],[ex,n]],{padding:100,duration:900,maxZoom:17,pitch:map.getPitch(),bearing:map.getBearing()});
   });
 }

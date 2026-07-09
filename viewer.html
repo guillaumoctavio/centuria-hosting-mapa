@@ -244,13 +244,14 @@ function setupLayers() {
     map.addSource('src', { type:'geojson', data: geojson });
   }
   (config.layers || []).forEach(l => {
-    const is3d    = l.type === 'fill-extrusion';
-    const isMatch = l.type === 'fill-match';
-    const glType  = isMatch ? 'fill' : l.type;
+    const is3d     = l.type === 'fill-extrusion';
+    const isMatch  = l.type === 'fill-match';
+    const isCircle = l.type === 'circle';
+    const glType   = isMatch ? 'fill' : l.type;
 
     __lc[l.id] = {
-      opK:  is3d ? 'fill-extrusion-opacity' : 'fill-opacity',
-      colK: is3d ? 'fill-extrusion-color'   : 'fill-color',
+      opK:  is3d ? 'fill-extrusion-opacity' : isCircle ? 'circle-opacity' : 'fill-opacity',
+      colK: is3d ? 'fill-extrusion-color'   : isCircle ? 'circle-color'   : 'fill-color',
       field: l.field, stops: l.stops || [], colors: [...(l.colors||[])], op: l.opacity,
       isMatch
     };
@@ -259,6 +260,9 @@ function setupLayers() {
       extra: is3d ? {
         'fill-extrusion-height': ['interpolate',['linear'],['get',l.field],l.stops[0],20,l.stops[l.stops.length-1],400],
         'fill-extrusion-base': 0
+      } : isCircle ? {
+        'circle-radius': ['interpolate',['linear'],['get',l.field],l.stops[0],4,l.stops[l.stops.length-1],16],
+        'circle-stroke-width': 1, 'circle-stroke-color': 'rgba(0,0,0,0.4)'
       } : {}
     };
 
@@ -405,10 +409,10 @@ function setupBasemaps() {
         transformStyle: (_prev, next) => {
           const custom = [];
           (config.layers||[]).forEach(l => {
-            const isMatch = l.type==='fill-match', is3d = l.type==='fill-extrusion';
+            const isMatch = l.type==='fill-match', is3d = l.type==='fill-extrusion', isCircle = l.type==='circle';
             const glType = isMatch ? 'fill' : l.type;
-            const opK = is3d ? 'fill-extrusion-opacity' : 'fill-opacity';
-            const colK = is3d ? 'fill-extrusion-color' : 'fill-color';
+            const opK = is3d ? 'fill-extrusion-opacity' : isCircle ? 'circle-opacity' : 'fill-opacity';
+            const colK = is3d ? 'fill-extrusion-color' : isCircle ? 'circle-color' : 'fill-color';
             let ce;
             if (isMatch) {
               const args = Object.entries(l.matchColors||{}).flatMap(([v,c])=>[v,c]);
@@ -421,6 +425,10 @@ function setupBasemaps() {
             if (is3d) Object.assign(paint, {
               'fill-extrusion-height': ['interpolate',['linear'],['get',l.field],l.stops[0],20,l.stops[l.stops.length-1],400],
               'fill-extrusion-base': 0
+            });
+            if (isCircle) Object.assign(paint, {
+              'circle-radius': ['interpolate',['linear'],['get',l.field],l.stops[0],4,l.stops[l.stops.length-1],16],
+              'circle-stroke-width': 1, 'circle-stroke-color': 'rgba(0,0,0,0.4)'
             });
             custom.push({ id:l.id, type:glType, source:'src', paint,
               layout:{ visibility: vis[l.id] ?? (l.active?'visible':'none') } });
